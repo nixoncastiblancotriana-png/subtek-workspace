@@ -2,10 +2,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Download, Plus, Save, Trash2, 
-  CheckCircle, Clock, AlertTriangle, TrendingUp, Info
+  CheckCircle, Clock, AlertTriangle, TrendingUp, Info, BarChart3, X
 } from 'lucide-react';
 
-type Gerencia = 'General' | 'Producto' | 'Comercial' | 'Procesos y Proyectos';
+type Gerencia = 'Dashboard Global' | 'General' | 'Producto' | 'Comercial' | 'Procesos y Proyectos';
 type Estatus = 'Sin iniciar' | 'En curso' | 'Finalizado';
 type Veredicto = 'Pendiente' | 'Validada' | 'Refutada';
 
@@ -25,12 +25,13 @@ interface Hipotesis {
   actividades: string;
 }
 
-const GERENCIAS: Gerencia[] = ['General', 'Producto', 'Comercial', 'Procesos y Proyectos'];
+const GERENCIAS: Gerencia[] = ['Dashboard Global', 'General', 'Producto', 'Comercial', 'Procesos y Proyectos'];
 
 export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
-  const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('General');
+  const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   const [isClient, setIsClient] = useState(false);
+  const [modalBorrar, setModalBorrar] = useState<string | null>(null);
 
   useEffect(() => {
     setIsClient(true);
@@ -46,7 +47,7 @@ export default function SubtekDashboard() {
   const agregarHipotesis = () => {
     const nueva: Hipotesis = {
       id: Math.random().toString(36).substr(2, 9),
-      gerencia: gerenciaActiva,
+      gerencia: gerenciaActiva === 'Dashboard Global' ? 'General' : gerenciaActiva,
       nombre: '',
       presupuestoAsignado: 0,
       presupuestoGastado: 0,
@@ -60,6 +61,7 @@ export default function SubtekDashboard() {
       actividades: ''
     };
     guardarDatos([nueva, ...hipotesis]);
+    if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('General');
   };
 
   const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
@@ -67,20 +69,19 @@ export default function SubtekDashboard() {
     guardarDatos(act);
   };
 
-  const eliminarHipotesis = (id: string) => {
-    if(confirm('¿Seguro que deseas eliminar esta hipótesis?')) {
-      guardarDatos(hipotesis.filter(h => h.id !== id));
+  const confirmarBorrado = () => {
+    if (modalBorrar) {
+      guardarDatos(hipotesis.filter(h => h.id !== modalBorrar));
+      setModalBorrar(null);
     }
   };
 
   const exportarCSV = () => {
-    const headers = ['ID', 'Gerencia', 'Nombre/Hipotesis', 'Presupuesto Asignado', 'Presupuesto Gastado', 'Fecha Inicio', 'Fecha Limite', 'Avance %', 'Estatus', 'Veredicto', 'Colaboradores', 'Observaciones', 'Actividades'];
+    const headers = ['ID', 'Gerencia', 'Nombre/Hipotesis', 'P. Asignado', 'P. Gastado', 'Inicio', 'Limite', 'Avance %', 'Estatus', 'Veredicto'];
     const rows = hipotesis.map(h => [
       h.id, h.gerencia, `"${h.nombre}"`, h.presupuestoAsignado, h.presupuestoGastado, 
-      h.fechaInicio, h.fechaLimite, h.avance, h.estatus, h.veredicto, 
-      h.colaboradores, `"${h.observaciones}"`, `"${h.actividades}"`
+      h.fechaInicio, h.fechaLimite, h.avance, h.estatus, h.veredicto
     ]);
-    
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -91,56 +92,68 @@ export default function SubtekDashboard() {
     link.remove();
   };
 
-  if (!isClient) return <div className="p-8 text-white">Cargando tablero...</div>;
+  if (!isClient) return <div className="p-8 text-white">Cargando plataforma SUBTEK...</div>;
 
-  const hipotesisFiltradas = hipotesis.filter(h => h.gerencia === gerenciaActiva);
+  const hipotesisFiltradas = gerenciaActiva === 'Dashboard Global' ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
+  
+  // Cálculos para el Dashboard Global
+  const totalAsignado = hipotesis.reduce((acc, curr) => acc + curr.presupuestoAsignado, 0);
+  const totalGastado = hipotesis.reduce((acc, curr) => acc + curr.presupuestoGastado, 0);
+  const validadas = hipotesis.filter(h => h.veredicto === 'Validada').length;
 
   return (
-    <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100">
+    <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100 font-sans">
       
-      {/* HEADER / NAVIGATION */}
-      <header className="bg-subtek-blue border-b border-subtek-cyan/20 p-4 sticky top-0 z-50 shadow-md shadow-subtek-cyan/10">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-3">
-            <div className="bg-subtek-cyan text-subtek-blue font-black px-3 py-1 rounded text-2xl tracking-widest">
-              SUBTEK
+      {/* MODAL DE CONFIRMACIÓN DE BORRADO */}
+      {modalBorrar && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
+          <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
+            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
+              <AlertTriangle className="text-red-500" /> Confirmar Eliminación
+            </h3>
+            <p className="text-slate-300 mb-6">¿Estás absolutamente seguro de borrar este proyecto? Se perderá todo el historial de presupuesto y avance. Esta acción no se puede deshacer.</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setModalBorrar(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
+              <button onClick={confirmarBorrado} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
             </div>
-            <span className="text-sm font-semibold tracking-wide text-subtek-cyan uppercase">
-              Lean Workspace
-            </span>
           </div>
-          <button 
-            onClick={exportarCSV}
-            className="flex items-center gap-2 bg-subtek-card border border-subtek-cyan/50 hover:bg-subtek-cyan hover:text-subtek-blue text-subtek-cyan px-4 py-2 rounded transition-all font-medium"
-          >
-            <Download size={18} /> Exportar a CSV para BI
+        </div>
+      )}
+
+      {/* HEADER CORPORATIVO */}
+      <header className="bg-[#1a0f2e] border-b border-subtek-cyan/30 p-4 sticky top-0 z-50 shadow-md shadow-subtek-cyan/10">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+          <div className="flex items-center gap-4">
+            <img src="/logo.jpg" alt="Subtek Logo" className="h-10 rounded shadow-[0_0_10px_rgba(0,240,255,0.3)]" onError={(e) => e.currentTarget.style.display = 'none'} />
+            <div className="flex flex-col">
+              <span className="text-xl font-black tracking-widest text-white">SUBTEK</span>
+              <span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span>
+            </div>
+          </div>
+          <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan hover:bg-subtek-cyan hover:text-black text-subtek-cyan px-4 py-2 rounded transition-all duration-300 hover:scale-105 font-medium shadow-[0_0_10px_rgba(0,240,255,0.1)]">
+            <Download size={18} /> Exportar Métricas (BI)
           </button>
         </div>
       </header>
 
-      {/* SUBI - MASCOT WIDGET */}
-      <div className="bg-gradient-to-r from-subtek-accent/20 to-subtek-cyan/10 border-b border-subtek-cyan/30 p-4">
+      {/* MASCOTA SUBI */}
+      <div className="bg-gradient-to-r from-subtek-blue to-[#1a0f2e] border-b border-subtek-cyan/20 p-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
-          <div className="w-14 h-14 rounded-full bg-subtek-card border-2 border-subtek-cyan flex items-center justify-center shrink-0 shadow-[0_0_15px_rgba(0,240,255,0.4)]">
-             <span className="text-2xl" title="Mascota Subi">🤖</span>
-          </div>
-          <div className="text-sm md:text-base text-slate-200">
-            <span className="font-bold text-subtek-cyan">¡Hola! Soy Subi. </span> 
-            Recuerda que debes validar tu hipótesis, poner las fechas reales, el presupuesto que has gastado y dejar observaciones en tu workspace. ¡El éxito de nuestra startup depende de la medición constante!
+          <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
+          <div className="text-sm md:text-base text-slate-300">
+            <span className="font-bold text-subtek-cyan text-lg">¡Hola equipo, soy Subi! 🤖</span> <br/>
+            Nuestro enfoque es el dato. Recuerden mantener los presupuestos y fechas actualizados. Si un proyecto fracasa, márquenlo como "Refutado" (es aprendizaje), si tiene éxito, márquenlo como "Validado". ¡A iterar!
           </div>
         </div>
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
         
-        {/* GERENCIAS TABS */}
-        <div className="flex flex-wrap gap-2 mb-8">
+        {/* NAVEGACIÓN DE PESTAÑAS */}
+        <div className="flex flex-wrap gap-2 mb-8 border-b border-slate-700 pb-2">
           {GERENCIAS.map(g => (
-            <button
-              key={g}
-              onClick={() => setGerenciaActiva(g)}
-              className={`px-4 py-3 rounded-t-lg font-medium transition-all ${gerenciaActiva === g ? 'bg-subtek-cyan text-subtek-blue shadow-[0_-4px_10px_rgba(0,240,255,0.2)]' : 'bg-subtek-card text-slate-400 hover:text-white'}`}
-            >
+            <button key={g} onClick={() => setGerenciaActiva(g)} className={`px-4 py-2 rounded-t-lg font-medium transition-all duration-300 flex items-center gap-2 ${gerenciaActiva === g ? 'bg-subtek-cyan text-black shadow-[0_-4px_15px_rgba(0,240,255,0.3)] transform -translate-y-1' : 'bg-subtek-card text-slate-400 hover:text-white hover:bg-slate-700'}`}>
+              {g === 'Dashboard Global' && <BarChart3 size={16} />}
               {g}
             </button>
           ))}
@@ -148,24 +161,46 @@ export default function SubtekDashboard() {
 
         {/* WORKSPACE HEADER */}
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">Workspace: {gerenciaActiva}</h2>
-          <button 
-            onClick={agregarHipotesis}
-            className="flex items-center gap-2 bg-subtek-cyan text-subtek-blue font-bold px-4 py-2 rounded hover:brightness-110 transition-all"
-          >
-            <Plus size={20} /> Nueva Hipótesis
-          </button>
+          <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">
+            {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° de Proyectos' : `Workspace: ${gerenciaActiva}`}
+          </h2>
+          {gerenciaActiva !== 'Dashboard Global' && (
+            <button onClick={agregarHipotesis} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all duration-300 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,240,255,0.5)]">
+              <Plus size={20} /> Nuevo Proyecto / Hipótesis
+            </button>
+          )}
         </div>
 
-        {/* HIPOTESIS GRID */}
+        {/* VISTA DASHBOARD GLOBAL */}
+        {gerenciaActiva === 'Dashboard Global' && (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-subtek-card p-6 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 font-bold mb-2">Total Proyectos</span>
+              <span className="text-4xl font-black text-white">{hipotesis.length}</span>
+            </div>
+            <div className="bg-subtek-card p-6 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 font-bold mb-2">Hipótesis Validadas</span>
+              <span className="text-4xl font-black text-green-400">{validadas}</span>
+            </div>
+            <div className="bg-subtek-card p-6 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 font-bold mb-2">Presupuesto Asignado</span>
+              <span className="text-3xl font-black text-subtek-cyan">${totalAsignado.toLocaleString()}</span>
+            </div>
+            <div className="bg-subtek-card p-6 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 font-bold mb-2">Presupuesto Quemado</span>
+              <span className="text-3xl font-black text-red-400">${totalGastado.toLocaleString()}</span>
+            </div>
+          </div>
+        )}
+
+        {/* GRID DE TARJETAS */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-20">
           {hipotesisFiltradas.length === 0 ? (
-            <div className="col-span-full py-12 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
-              <p>No hay hipótesis en este workspace. Haz clic en "Nueva Hipótesis" para comenzar a iterar.</p>
+            <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl">
+              <p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto" para empezar.</p>
             </div>
           ) : (
             hipotesisFiltradas.map((hip) => {
-              // Calculo de semáforo (Burn rate vs Avance)
               const presupuestoValido = hip.presupuestoAsignado > 0;
               const burnRate = presupuestoValido ? (hip.presupuestoGastado / hip.presupuestoAsignado) * 100 : 0;
               let semaforoColor = 'bg-subtek-card border-slate-700';
@@ -175,141 +210,63 @@ export default function SubtekDashboard() {
                  if (burnRate > 80 && hip.avance < 50) {
                     semaforoColor = 'bg-red-950/40 border-red-500/50';
                     alertaActiva = true;
-                 } else if (burnRate > 90) {
-                    semaforoColor = 'bg-orange-950/40 border-orange-500/50';
-                 }
+                 } else if (burnRate > 90) { semaforoColor = 'bg-orange-950/40 border-orange-500/50'; }
               }
-              if (hip.estatus === 'Finalizado' && hip.veredicto === 'Validada') {
-                 semaforoColor = 'bg-green-950/30 border-green-500/50';
-              }
+              if (hip.estatus === 'Finalizado' && hip.veredicto === 'Validada') semaforoColor = 'bg-green-950/30 border-green-500/50';
+              if (hip.estatus === 'Finalizado' && hip.veredicto === 'Refutada') semaforoColor = 'bg-slate-900 border-slate-600 opacity-70';
 
               return (
-                <div key={hip.id} className={`p-5 rounded-xl border ${semaforoColor} flex flex-col gap-4 shadow-lg`}>
+                <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-4 shadow-lg transition-all duration-500 hover:shadow-xl`}>
                   
-                  {/* Titulo y Acciones */}
-                  <div className="flex justify-between gap-4">
-                    <input 
-                      type="text" 
-                      placeholder="Ej: Si ofrecemos 14 días gratis, cerramos 3 B2B..."
-                      className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-lg font-bold placeholder-slate-600 pb-1"
-                      value={hip.nombre}
-                      onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)}
-                    />
-                    <button onClick={() => eliminarHipotesis(hip.id)} className="text-slate-500 hover:text-red-400 p-1">
+                  <div className="flex justify-between gap-4 items-start">
+                    <div className="w-full">
+                      {gerenciaActiva === 'Dashboard Global' && <span className="text-xs bg-subtek-cyan text-black font-bold px-2 py-1 rounded mb-2 inline-block">{hip.gerencia}</span>}
+                      <input type="text" placeholder="Ej: Implementar IA para etiquetado NASSCO..."
+                        className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-lg font-bold placeholder-slate-600 pb-1 transition-colors"
+                        value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)}
+                      />
+                    </div>
+                    <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300" title="Borrar Proyecto">
                       <Trash2 size={20} />
                     </button>
                   </div>
 
-                  {/* Alerta de Burn Rate */}
                   {alertaActiva && (
-                    <div className="flex items-center gap-2 text-red-400 text-xs bg-red-950/50 p-2 rounded border border-red-900">
-                      <AlertTriangle size={14} /> Alto consumo de presupuesto con bajo avance.
+                    <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 p-3 rounded border border-red-900 animate-pulse">
+                      <AlertTriangle size={16} /> ¡Peligro! Alto consumo de capital frente a bajo avance.
                     </div>
                   )}
 
-                  {/* Grid de Metricas */}
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    {/* Estatus */}
+                  <div className="grid grid-cols-2 gap-4 text-sm mt-2">
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-xs uppercase font-semibold">Estatus</label>
-                      <select 
-                        className="bg-slate-800 border border-slate-700 rounded p-1.5 outline-none focus:border-subtek-cyan"
-                        value={hip.estatus}
-                        onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)}
-                      >
-                        <option value="Sin iniciar">Sin iniciar</option>
-                        <option value="En curso">En curso</option>
-                        <option value="Finalizado">Finalizado</option>
+                      <label className="text-slate-400 text-xs uppercase font-bold">Estatus</label>
+                      <select className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan transition-colors" value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)}>
+                        <option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option>
                       </select>
                     </div>
-
-                    {/* Veredicto (Solo si Finalizado) */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-xs uppercase font-semibold">Veredicto</label>
-                      <select 
-                        className={`bg-slate-800 border border-slate-700 rounded p-1.5 outline-none focus:border-subtek-cyan ${hip.estatus !== 'Finalizado' ? 'opacity-50 cursor-not-allowed' : ''}`}
-                        value={hip.veredicto}
-                        disabled={hip.estatus !== 'Finalizado'}
-                        onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}
-                      >
-                        <option value="Pendiente">Pendiente</option>
-                        <option value="Validada">✅ Validada (Éxito)</option>
-                        <option value="Refutada">❌ Refutada (Aprendizaje)</option>
+                      <label className="text-slate-400 text-xs uppercase font-bold">Veredicto</label>
+                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 outline-none transition-colors ${hip.estatus !== 'Finalizado' ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado'} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
+                        <option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito (Validada)</option><option value="Refutada">❌ Aprendizaje (Refutada)</option>
                       </select>
                     </div>
-
-                    {/* Presupuesto */}
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-xs uppercase font-semibold">P. Asignado ($)</label>
-                      <input 
-                        type="number" className="bg-slate-800 border border-slate-700 rounded p-1.5 outline-none w-full"
-                        value={hip.presupuestoAsignado} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))}
-                      />
+                      <label className="text-slate-400 text-xs uppercase font-bold">Presupuesto ($)</label>
+                      <input type="number" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan transition-colors w-full" value={hip.presupuestoAsignado} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-xs uppercase font-semibold">P. Gastado ($)</label>
-                      <input 
-                        type="number" className="bg-slate-800 border border-slate-700 rounded p-1.5 outline-none w-full text-red-300"
-                        value={hip.presupuestoGastado} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))}
-                      />
-                    </div>
-
-                    {/* Fechas */}
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-xs uppercase font-semibold flex items-center gap-1"><Clock size={12}/> Inicio</label>
-                      <input 
-                        type="date" className="bg-slate-800 border border-slate-700 rounded p-1.5 outline-none w-full text-xs"
-                        value={hip.fechaInicio} onChange={(e) => actualizarHipotesis(hip.id, 'fechaInicio', e.target.value)}
-                      />
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-xs uppercase font-semibold flex items-center gap-1"><Clock size={12}/> Límite/Real</label>
-                      <input 
-                        type="date" className="bg-slate-800 border border-slate-700 rounded p-1.5 outline-none w-full text-xs"
-                        value={hip.fechaLimite} onChange={(e) => actualizarHipotesis(hip.id, 'fechaLimite', e.target.value)}
-                      />
+                      <label className="text-slate-400 text-xs uppercase font-bold">Gastado (Burn) ($)</label>
+                      <input type="number" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-red-400 transition-colors w-full text-red-300" value={hip.presupuestoGastado} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} />
                     </div>
                   </div>
 
-                  {/* Progreso */}
-                  <div className="flex flex-col gap-2 mt-2">
+                  <div className="flex flex-col gap-2 mt-4 bg-slate-800/50 p-3 rounded-lg border border-slate-700/50">
                     <div className="flex justify-between items-center text-xs">
-                      <label className="text-slate-400 uppercase font-semibold flex items-center gap-1"><TrendingUp size={12}/> % Avance</label>
-                      <span className="text-subtek-cyan font-bold">{hip.avance}%</span>
+                      <label className="text-slate-400 uppercase font-bold flex items-center gap-1"><TrendingUp size={14}/> Progreso de Ejecución</label>
+                      <span className="text-subtek-cyan font-black text-base">{hip.avance}%</span>
                     </div>
-                    <input 
-                      type="range" min="0" max="100" className="w-full accent-subtek-cyan"
-                      value={hip.avance} onChange={(e) => actualizarHipotesis(hip.id, 'avance', Number(e.target.value))}
-                    />
+                    <input type="range" min="0" max="100" className="w-full accent-subtek-cyan cursor-pointer" value={hip.avance} onChange={(e) => actualizarHipotesis(hip.id, 'avance', Number(e.target.value))} />
                   </div>
-
-                  {/* RRHH y Textos */}
-                  <div className="flex items-center gap-2 mt-2 border-t border-slate-700 pt-4">
-                    <label className="text-slate-400 text-xs uppercase font-semibold whitespace-nowrap">Colaboradores:</label>
-                    <input 
-                      type="number" min="0" className="bg-slate-800 border border-slate-700 rounded p-1 w-16 text-center text-sm outline-none"
-                      value={hip.colaboradores} onChange={(e) => actualizarHipotesis(hip.id, 'colaboradores', Number(e.target.value))}
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1 mt-2">
-                    <label className="text-slate-400 text-xs uppercase font-semibold">Actividades Clave (Hitos)</label>
-                    <textarea 
-                      placeholder="- Hito 1\n- Hito 2"
-                      className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan h-16 resize-none"
-                      value={hip.actividades} onChange={(e) => actualizarHipotesis(hip.id, 'actividades', e.target.value)}
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1">
-                    <label className="text-slate-400 text-xs uppercase font-semibold flex items-center gap-1"><Info size={12}/> Observaciones / Workspace</label>
-                    <textarea 
-                      placeholder="Anota aquí aprendizajes, bloqueos o insights..."
-                      className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan h-20 resize-none text-subtek-cyan"
-                      value={hip.observaciones} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)}
-                    />
-                  </div>
-
                 </div>
               );
             })
