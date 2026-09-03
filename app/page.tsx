@@ -135,7 +135,6 @@ export default function SubtekDashboard() {
       const obsLimpia = h.observaciones.replace(/\n/g, " ").replace(/"/g, "'");
       const evLimpia = h.evidencia ? `"${h.evidencia}"` : "";
 
-      // Transformación estructurada para BI: 1 fila por cada subtarea
       if (h.subtareas.length === 0) {
         rows.push([
           h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.presupuestoAsignado, h.presupuestoGastado, 
@@ -215,7 +214,7 @@ export default function SubtekDashboard() {
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
           <div className="text-sm md:text-base text-slate-300">
             <span className="font-bold text-subtek-cyan text-lg">¡Hola equipo, soy Subi! 🤖</span> <br/>
-            La exportación a BI ha sido optimizada. Ahora cada gerente debe adjuntar la <b>ruta de evidencia</b> de sus validaciones. Además, el presupuesto disponible se calcula en tiempo real restando el capital <i>asignado</i> (activo) y el <i>gastado</i> (finalizado).
+            Recuerda que debes validar tu hipótesis, poner las fechas reales, el presupuesto que has gastado y dejar observaciones en tu workspace. ¡El éxito de nuestra startup depende de la medición constante!
           </div>
         </div>
       </div>
@@ -244,10 +243,9 @@ export default function SubtekDashboard() {
           )}
         </div>
 
-        {/* VISTA DASHBOARD GLOBAL */}
+        {/* VISTA DASHBOARD GLOBAL - INDICADORES */}
         {gerenciaActiva === 'Dashboard Global' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {/* Presupuesto Total Editable */}
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
               <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
               <div className="flex items-center justify-center gap-2">
@@ -295,6 +293,7 @@ export default function SubtekDashboard() {
               const burnRate = presupuestoValido ? (hip.presupuestoGastado / hip.presupuestoAsignado) * 100 : 0;
               let semaforoColor = 'bg-subtek-card border-slate-700';
               let alertaActiva = false;
+              const isGlobal = gerenciaActiva === 'Dashboard Global';
               
               if (presupuestoValido) {
                  if (burnRate > 80 && hip.avance < 50) {
@@ -306,20 +305,23 @@ export default function SubtekDashboard() {
               if (hip.estatus === 'Finalizado' && hip.veredicto === 'Refutada') semaforoColor = 'bg-slate-900 border-slate-600 opacity-70';
 
               return (
-                <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-5 shadow-xl transition-all duration-500 hover:shadow-2xl relative overflow-hidden`}>
+                <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-5 shadow-xl transition-all duration-500 hover:shadow-2xl relative overflow-hidden ${isGlobal ? 'opacity-90' : ''}`}>
                   
                   {/* Titulo y Borrar */}
                   <div className="flex justify-between gap-4 items-start">
                     <div className="w-full">
-                      {gerenciaActiva === 'Dashboard Global' && <span className="text-[10px] bg-subtek-cyan text-black font-bold px-2 py-0.5 rounded mb-2 inline-block uppercase tracking-wider">{hip.gerencia}</span>}
+                      {isGlobal && <span className="text-[10px] bg-subtek-cyan text-black font-bold px-2 py-0.5 rounded mb-2 inline-block uppercase tracking-wider">{hip.gerencia}</span>}
                       <input type="text" placeholder="Ej: Piloto de IA para etiquetado NASSCO v8..."
-                        className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors"
+                        className={`bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`}
                         value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)}
+                        disabled={isGlobal}
                       />
                     </div>
-                    <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300" title="Borrar Proyecto">
-                      <Trash2 size={20} />
-                    </button>
+                    {!isGlobal && (
+                      <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300" title="Borrar Proyecto">
+                        <Trash2 size={20} />
+                      </button>
+                    )}
                   </div>
 
                   {alertaActiva && (
@@ -332,19 +334,19 @@ export default function SubtekDashboard() {
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label>
-                      <select className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors" value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)}>
+                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}>
                         <option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option>
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label>
-                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado'} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
+                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
                         <option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option>
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
-                      <select className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full" value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)}>
+                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}>
                         <option value="">Seleccionar...</option>
                         {RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
@@ -355,11 +357,11 @@ export default function SubtekDashboard() {
                   <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto Asignado ($)</label>
-                      <input type="number" placeholder="0" className="bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-lg text-white" value={hip.presupuestoAsignado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} />
+                      <input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-lg text-white ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoAsignado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} disabled={isGlobal} />
                     </div>
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto Gastado ($)</label>
-                      <input type="number" placeholder="0" className="bg-transparent border-b border-slate-700 outline-none focus:border-red-400 transition-colors w-full text-lg text-red-400" value={hip.presupuestoGastado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} />
+                      <input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-red-400 transition-colors w-full text-lg text-red-400 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoGastado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} disabled={isGlobal} />
                     </div>
                     
                     <div className="col-span-2 flex flex-col gap-2 pt-2 border-t border-slate-800">
@@ -367,7 +369,7 @@ export default function SubtekDashboard() {
                         <label className="text-slate-400 uppercase font-bold flex items-center gap-1"><TrendingUp size={14}/> Progreso de Ejecución</label>
                         <span className="text-subtek-cyan font-black text-lg">{hip.avance}%</span>
                       </div>
-                      <input type="range" min="0" max="100" className="w-full accent-subtek-cyan cursor-pointer" value={hip.avance} onChange={(e) => actualizarHipotesis(hip.id, 'avance', Number(e.target.value))} />
+                      <input type="range" min="0" max="100" className={`w-full accent-subtek-cyan ${isGlobal ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`} value={hip.avance} onChange={(e) => actualizarHipotesis(hip.id, 'avance', Number(e.target.value))} disabled={isGlobal} />
                     </div>
                   </div>
 
@@ -380,22 +382,26 @@ export default function SubtekDashboard() {
                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col gap-2 h-44 overflow-y-auto">
                           {hip.subtareas.map(sub => (
                             <div key={sub.id} className="flex items-start gap-2 group">
-                              <input type="checkbox" checked={sub.completada} onChange={() => toggleSubtarea(hip.id, sub.id)} className="mt-1 accent-subtek-cyan cursor-pointer" />
+                              <input type="checkbox" checked={sub.completada} onChange={() => toggleSubtarea(hip.id, sub.id)} className={`mt-1 accent-subtek-cyan ${isGlobal ? 'cursor-not-allowed' : 'cursor-pointer'}`} disabled={isGlobal} />
                               <span className={`text-sm flex-1 ${sub.completada ? 'line-through text-slate-500' : 'text-slate-200'}`}>{sub.texto}</span>
-                              <button onClick={() => borrarSubtarea(hip.id, sub.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                              {!isGlobal && (
+                                <button onClick={() => borrarSubtarea(hip.id, sub.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>
+                              )}
                             </div>
                           ))}
-                          <input 
-                            type="text" 
-                            placeholder="+ Escribir y presionar Enter..."
-                            className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1"
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                agregarSubtarea(hip.id, e.currentTarget.value);
-                                e.currentTarget.value = '';
-                              }
-                            }}
-                          />
+                          {!isGlobal && (
+                            <input 
+                              type="text" 
+                              placeholder="+ Escribir y presionar Enter..."
+                              className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1"
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  agregarSubtarea(hip.id, e.currentTarget.value);
+                                  e.currentTarget.value = '';
+                                }
+                              }}
+                            />
+                          )}
                        </div>
                     </div>
 
@@ -405,8 +411,9 @@ export default function SubtekDashboard() {
                         <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Info size={14}/> Observaciones</label>
                         <textarea 
                           placeholder="Anota aquí lecciones, bloqueos o insights..."
-                          className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed"
+                          className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`}
                           value={hip.observaciones} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)}
+                          disabled={isGlobal}
                         />
                       </div>
                       
@@ -415,8 +422,9 @@ export default function SubtekDashboard() {
                         <input 
                           type="url" 
                           placeholder="https://drive.google.com/..."
-                          className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600"
+                          className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`}
                           value={hip.evidencia} onChange={(e) => actualizarHipotesis(hip.id, 'evidencia', e.target.value)}
+                          disabled={isGlobal}
                         />
                       </div>
                     </div>
