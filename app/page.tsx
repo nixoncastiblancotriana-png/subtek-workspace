@@ -1,11 +1,11 @@
 "use client";
 import React, { useState, useEffect } from 'react';
 import { 
-  Download, Plus, Trash2, Users, 
+  Download, Plus, Trash2, Users, Link as LinkIcon,
   AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X
 } from 'lucide-react';
 
-type Gerencia = 'Dashboard Global' | 'General' | 'Producto' | 'Comercial' | 'Procesos y Proyectos';
+type Gerencia = 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos';
 type Estatus = 'Sin iniciar' | 'En curso' | 'Finalizado';
 type Veredicto = 'Pendiente' | 'Validada' | 'Refutada';
 
@@ -19,20 +19,23 @@ interface Hipotesis {
   id: string;
   gerencia: Gerencia;
   nombre: string;
+  responsable: string;
   presupuestoAsignado: number;
   presupuestoGastado: number;
   avance: number;
   estatus: Estatus;
   veredicto: Veredicto;
-  colaboradores: number;
   observaciones: string;
+  evidencia: string;
   subtareas: Subtarea[];
 }
 
-const GERENCIAS: Gerencia[] = ['Dashboard Global', 'General', 'Producto', 'Comercial', 'Procesos y Proyectos'];
+const GERENCIAS: Gerencia[] = ['Dashboard Global', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
+const RESPONSABLES = ['Nixon Castiblanco', 'Edwin Escalante', 'Daniel Arevalo', 'Lis Gordillo'];
 
 export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
+  const [presupuestoTotalSubtek, setPresupuestoTotalSubtek] = useState<number>(0);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   const [isClient, setIsClient] = useState(false);
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
@@ -41,6 +44,9 @@ export default function SubtekDashboard() {
     setIsClient(true);
     const saved = localStorage.getItem('subtek-hipotesis');
     if (saved) setHipotesis(JSON.parse(saved));
+    
+    const savedPpto = localStorage.getItem('subtek-presupuesto');
+    if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
   }, []);
 
   const guardarDatos = (data: Hipotesis[]) => {
@@ -48,22 +54,28 @@ export default function SubtekDashboard() {
     localStorage.setItem('subtek-hipotesis', JSON.stringify(data));
   };
 
+  const guardarPresupuestoTotal = (valor: number) => {
+    setPresupuestoTotalSubtek(valor);
+    localStorage.setItem('subtek-presupuesto', valor.toString());
+  };
+
   const agregarHipotesis = () => {
     const nueva: Hipotesis = {
       id: Math.random().toString(36).substr(2, 9),
-      gerencia: gerenciaActiva === 'Dashboard Global' ? 'General' : gerenciaActiva,
+      gerencia: gerenciaActiva === 'Dashboard Global' ? 'Gerencia General' : gerenciaActiva,
       nombre: '',
+      responsable: '',
       presupuestoAsignado: 0,
       presupuestoGastado: 0,
       avance: 0,
       estatus: 'Sin iniciar',
       veredicto: 'Pendiente',
-      colaboradores: 1,
       observaciones: '',
+      evidencia: '',
       subtareas: []
     };
     guardarDatos([nueva, ...hipotesis]);
-    if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('General');
+    if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('Gerencia General');
   };
 
   const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
@@ -116,18 +128,31 @@ export default function SubtekDashboard() {
   };
 
   const exportarCSV = () => {
-    const headers = ['ID', 'Gerencia', 'Nombre_Hipotesis', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Recurso_Humano', 'Observaciones', 'Subtareas_Consolidadas'];
-    const rows = hipotesis.map(h => {
-      // Limpiar textos para que no rompan el CSV (quitar saltos de linea y comillas)
+    const headers = ['ID', 'Gerencia', 'Nombre_Proyecto', 'Responsable', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Evidencia_URL', 'Observaciones', 'Subtarea_Texto', 'Subtarea_Estado'];
+    const rows: any[][] = [];
+
+    hipotesis.forEach(h => {
       const obsLimpia = h.observaciones.replace(/\n/g, " ").replace(/"/g, "'");
-      // Consolidar subtareas en un solo string
-      const subtareasTexto = h.subtareas.map(s => `[${s.completada ? 'X' : ' '}] ${s.texto}`).join(" | ");
-      
-      return [
-        h.id, h.gerencia, `"${h.nombre}"`, h.presupuestoAsignado, h.presupuestoGastado, 
-        h.avance, h.estatus, h.veredicto, h.colaboradores, `"${obsLimpia}"`, `"${subtareasTexto}"`
-      ];
+      const evLimpia = h.evidencia ? `"${h.evidencia}"` : "";
+
+      // Transformación estructurada para BI: 1 fila por cada subtarea
+      if (h.subtareas.length === 0) {
+        rows.push([
+          h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.presupuestoAsignado, h.presupuestoGastado, 
+          h.avance, h.estatus, h.veredicto, evLimpia, `"${obsLimpia}"`, "", ""
+        ]);
+      } else {
+        h.subtareas.forEach(sub => {
+          const subTexto = sub.texto.replace(/\n/g, " ").replace(/"/g, "'");
+          const subEstado = sub.completada ? "Completada" : "Pendiente";
+          rows.push([
+            h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.presupuestoAsignado, h.presupuestoGastado, 
+            h.avance, h.estatus, h.veredicto, evLimpia, `"${obsLimpia}"`, `"${subTexto}"`, subEstado
+          ]);
+        });
+      }
     });
+
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement("a");
@@ -142,11 +167,12 @@ export default function SubtekDashboard() {
 
   const hipotesisFiltradas = gerenciaActiva === 'Dashboard Global' ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
   
-  // Cálculos para el Dashboard Global
-  const totalAsignado = hipotesis.reduce((acc, curr) => acc + curr.presupuestoAsignado, 0);
-  const totalGastado = hipotesis.reduce((acc, curr) => acc + curr.presupuestoGastado, 0);
+  // Lógica Financiera de Subtek
+  const activasAsignado = hipotesis.filter(h => h.estatus !== 'Finalizado').reduce((acc, curr) => acc + curr.presupuestoAsignado, 0);
+  const finalizadasGastado = hipotesis.filter(h => h.estatus === 'Finalizado').reduce((acc, curr) => acc + curr.presupuestoGastado, 0);
+  const presupuestoDisponible = presupuestoTotalSubtek - activasAsignado - finalizadasGastado;
+  
   const validadas = hipotesis.filter(h => h.veredicto === 'Validada').length;
-  const totalPersonas = hipotesis.reduce((acc, curr) => acc + curr.colaboradores, 0);
 
   return (
     <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100 font-sans">
@@ -189,7 +215,7 @@ export default function SubtekDashboard() {
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
           <div className="text-sm md:text-base text-slate-300">
             <span className="font-bold text-subtek-cyan text-lg">¡Hola equipo, soy Subi! 🤖</span> <br/>
-            Para alimentar nuestro Flywheel de datos, necesito que sean rigurosos: documenten todas las <b>observaciones</b>, asignen el <b>personal responsable</b> y dividan el trabajo en <b>subtareas</b>. ¡Lo que no se mide, no se mejora!
+            La exportación a BI ha sido optimizada. Ahora cada gerente debe adjuntar la <b>ruta de evidencia</b> de sus validaciones. Además, el presupuesto disponible se calcula en tiempo real restando el capital <i>asignado</i> (activo) y el <i>gastado</i> (finalizado).
           </div>
         </div>
       </div>
@@ -209,7 +235,7 @@ export default function SubtekDashboard() {
         {/* WORKSPACE HEADER */}
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">
-            {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° de Proyectos' : `Workspace: ${gerenciaActiva}`}
+            {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° y Flujo de Caja' : `Workspace: ${gerenciaActiva}`}
           </h2>
           {gerenciaActiva !== 'Dashboard Global' && (
             <button onClick={agregarHipotesis} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all duration-300 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,240,255,0.5)]">
@@ -220,26 +246,39 @@ export default function SubtekDashboard() {
 
         {/* VISTA DASHBOARD GLOBAL */}
         {gerenciaActiva === 'Dashboard Global' && (
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-8">
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg">
-              <span className="text-slate-400 text-sm font-bold mb-1">Total Proyectos</span>
-              <span className="text-3xl font-black text-white">{hipotesis.length}</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {/* Presupuesto Total Editable */}
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
+              <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
+              <div className="flex items-center justify-center gap-2">
+                 <span className="text-4xl font-black text-white">$</span>
+                 <input 
+                    type="number" 
+                    placeholder="Ingrese Presupuesto Total"
+                    className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors" 
+                    value={presupuestoTotalSubtek || ''} 
+                    onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} 
+                 />
+              </div>
             </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg">
-              <span className="text-slate-400 text-sm font-bold mb-1">H. Validadas</span>
-              <span className="text-3xl font-black text-green-400">{validadas}</span>
+
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span>
+              <span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span>
             </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg">
-              <span className="text-slate-400 text-sm font-bold mb-1">P. Asignado</span>
-              <span className="text-2xl font-black text-subtek-cyan">${totalAsignado.toLocaleString()}</span>
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 text-sm font-bold mb-1">P. Quemado (Finalizadas)</span>
+              <span className="text-2xl font-black text-red-400">${finalizadasGastado.toLocaleString()}</span>
             </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg">
-              <span className="text-slate-400 text-sm font-bold mb-1">Burn Rate</span>
-              <span className="text-2xl font-black text-red-400">${totalGastado.toLocaleString()}</span>
+            <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]">
+              <span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span>
+              <span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>
+                ${presupuestoDisponible.toLocaleString()}
+              </span>
             </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg">
-              <span className="text-slate-400 text-sm font-bold mb-1">Fuerza Laboral</span>
-              <span className="text-3xl font-black text-blue-400">{totalPersonas}</span>
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
+              <span className="text-slate-400 text-sm font-bold mb-1">Proyectos Totales / Validados</span>
+              <span className="text-2xl font-black text-white">{hipotesis.length} / <span className="text-green-400">{validadas}</span></span>
             </div>
           </div>
         )}
@@ -289,7 +328,7 @@ export default function SubtekDashboard() {
                     </div>
                   )}
 
-                  {/* BLOQUE SUPERIOR: Estatus, Veredicto y RRHH */}
+                  {/* BLOQUE SUPERIOR: Estatus, Veredicto y Responsable */}
                   <div className="grid grid-cols-3 gap-3">
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label>
@@ -304,21 +343,22 @@ export default function SubtekDashboard() {
                       </select>
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> RR.HH</label>
-                      <div className="flex items-center">
-                        <input type="number" min="0" placeholder="0" className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full" value={hip.colaboradores || ''} onChange={(e) => actualizarHipotesis(hip.id, 'colaboradores', Number(e.target.value))} />
-                      </div>
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
+                      <select className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full" value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)}>
+                        <option value="">Seleccionar...</option>
+                        {RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
                     </div>
                   </div>
 
                   {/* BLOQUE MEDIO: Finanzas y Avance */}
                   <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto ($)</label>
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto Asignado ($)</label>
                       <input type="number" placeholder="0" className="bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-lg text-white" value={hip.presupuestoAsignado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Gastado ($)</label>
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto Gastado ($)</label>
                       <input type="number" placeholder="0" className="bg-transparent border-b border-slate-700 outline-none focus:border-red-400 transition-colors w-full text-lg text-red-400" value={hip.presupuestoGastado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} />
                     </div>
                     
@@ -331,13 +371,13 @@ export default function SubtekDashboard() {
                     </div>
                   </div>
 
-                  {/* BLOQUE INFERIOR: Subtareas y Observaciones */}
+                  {/* BLOQUE INFERIOR: Subtareas, Evidencia y Observaciones */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     
                     {/* Subtareas */}
                     <div className="flex flex-col gap-2">
                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas Operativas</label>
-                       <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col gap-2 h-40 overflow-y-auto">
+                       <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col gap-2 h-44 overflow-y-auto">
                           {hip.subtareas.map(sub => (
                             <div key={sub.id} className="flex items-start gap-2 group">
                               <input type="checkbox" checked={sub.completada} onChange={() => toggleSubtarea(hip.id, sub.id)} className="mt-1 accent-subtek-cyan cursor-pointer" />
@@ -347,7 +387,7 @@ export default function SubtekDashboard() {
                           ))}
                           <input 
                             type="text" 
-                            placeholder="+ Agregar nueva tarea y presionar Enter..."
+                            placeholder="+ Escribir y presionar Enter..."
                             className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1"
                             onKeyDown={(e) => {
                               if (e.key === 'Enter') {
@@ -359,14 +399,26 @@ export default function SubtekDashboard() {
                        </div>
                     </div>
 
-                    {/* Observaciones */}
-                    <div className="flex flex-col gap-2">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Info size={14}/> Observaciones / Riesgos</label>
-                      <textarea 
-                        placeholder="Anota aquí las lecciones aprendidas, bloqueos, contacto de proveedores o insights de la hipótesis..."
-                        className="bg-slate-800 border border-slate-700 rounded-lg p-3 text-sm outline-none focus:border-subtek-cyan h-40 resize-none text-slate-300 w-full leading-relaxed"
-                        value={hip.observaciones} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)}
-                      />
+                    {/* Observaciones y Evidencia */}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Info size={14}/> Observaciones</label>
+                        <textarea 
+                          placeholder="Anota aquí lecciones, bloqueos o insights..."
+                          className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed"
+                          value={hip.observaciones} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)}
+                        />
+                      </div>
+                      
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><LinkIcon size={14}/> Ruta de Evidencia (URL)</label>
+                        <input 
+                          type="url" 
+                          placeholder="https://drive.google.com/..."
+                          className="bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600"
+                          value={hip.evidencia} onChange={(e) => actualizarHipotesis(hip.id, 'evidencia', e.target.value)}
+                        />
+                      </div>
                     </div>
                   </div>
 
