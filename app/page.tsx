@@ -209,13 +209,13 @@ export default function SubtekDashboard() {
         </div>
       </header>
 
-      {/* MASCOTA SUBI */}
+      {/* MASCOTA SUBI - NUEVO MENSAJE */}
       <div className="bg-gradient-to-r from-subtek-blue to-[#1a0f2e] border-b border-subtek-cyan/20 p-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
           <div className="text-sm md:text-base text-slate-300">
             <span className="font-bold text-subtek-cyan text-lg">¡Hola equipo, soy Subi! 🤖</span> <br/>
-            Cualquier cambio que hagas quedará protegido en tu computador. Cuando estés listo, <b>recuerda presionar el botón de "Guardar en Servidor" arriba</b> para que los datos viajen a la base central de Subtek y todos podamos verlos.
+            Esta es la aplicación para validar las hipótesis de Subtek. Consignemos aquí todos nuestros proyectos: no olviden mantener actualizados los responsables, fechas, presupuestos, observaciones y evidencias de validación. ¡A iterar rápido y medir con precisión para llevar a Subtek al siguiente nivel! 🚀📈💪
           </div>
         </div>
       </div>
@@ -243,11 +243,18 @@ export default function SubtekDashboard() {
         {/* VISTA DASHBOARD GLOBAL */}
         {gerenciaActiva === 'Dashboard Global' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            {/* EDICIÓN DE PRESUPUESTO GLOBAL HABILITADA */}
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
               <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
               <div className="flex items-center justify-center gap-2">
                  <span className="text-4xl font-black text-white">$</span>
-                 <input type="number" placeholder="Ingrese Ppto Total" className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors cursor-not-allowed opacity-90" value={presupuestoTotalSubtek || ''} disabled={true} title="Editable en Gerencia General" />
+                 <input 
+                   type="number" 
+                   placeholder="Ingrese Ppto Total" 
+                   className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors" 
+                   value={presupuestoTotalSubtek || ''} 
+                   onChange={(e) => { guardarPresupuestoTotal(Number(e.target.value)); setHayCambiosLocales(true); }} 
+                 />
               </div>
             </div>
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span><span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span></div>
@@ -255,16 +262,6 @@ export default function SubtekDashboard() {
             <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"><span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span><span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>${presupuestoDisponible.toLocaleString()}</span></div>
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">Proyectos / Validados</span><span className="text-2xl font-black text-white">{hipotesis.length} / <span className="text-green-400">{validadas}</span></span></div>
           </div>
-        )}
-
-        {gerenciaActiva === 'Gerencia General' && (
-           <div className="mb-8 bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-start shadow-[0_0_15px_rgba(0,240,255,0.1)]">
-             <span className="text-slate-400 text-xs font-bold mb-2 uppercase tracking-widest flex items-center gap-2"><Info size={14}/> Configuración Global</span>
-             <div className="flex items-center gap-2 w-full max-w-md">
-                <span className="text-lg font-black text-subtek-cyan">Fondo Total Subtek: $</span>
-                <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan transition-colors flex-1 text-white" value={presupuestoTotalSubtek || ''} onChange={(e) => { guardarPresupuestoTotal(Number(e.target.value)); setHayCambiosLocales(true); }} />
-             </div>
-           </div>
         )}
 
         {/* GRID DE TARJETAS DE PROYECTO */}
