@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
-  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar
+  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload
 } from 'lucide-react';
 
 // ==========================================
@@ -12,8 +12,7 @@ const SUPABASE_URL = 'https://fzjovmnudqbwukyzsznc.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_rxf7CQsMHtXx-Ndo1RpE5A_52kMOtb3'; 
 // ==========================================
 
-const hasSupabase = SUPABASE_URL.startsWith('http');
-const supabase = hasSupabase ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 type Gerencia = 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos';
 type Estatus = 'Sin iniciar' | 'En curso' | 'Finalizado';
@@ -35,125 +34,108 @@ export default function SubtekDashboard() {
   const [presupuestoTotalSubtek, setPresupuestoTotalSubtek] = useState<number>(0);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   
-  // Variables de control de estado seguro
   const [isClient, setIsClient] = useState(false);
-  const [datosCargados, setDatosCargados] = useState(false); // <--- NUEVO CANDADO LÓGICO
+  const [datosCargados, setDatosCargados] = useState(false);
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
-  const [syncStatus, setSyncStatus] = useState<string>('Conectando...');
+  const [hayCambiosLocales, setHayCambiosLocales] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // 1. CARGA INICIAL HÍBRIDA (A prueba de F5)
+  // 1. CARGA INICIAL (Lee primero el disco duro, luego la nube)
   useEffect(() => {
     setIsClient(true);
-    
-    // Paso A: Leer disco local primero
     try {
-      const saved = localStorage.getItem('subtek-hipotesis-v5');
-      if (saved && saved !== '[]') {
-        setHipotesis(JSON.parse(saved));
-      }
-      const savedPpto = localStorage.getItem('subtek-presupuesto-v5');
+      const saved = localStorage.getItem('subtek-data-v6');
+      if (saved && saved !== '[]') setHipotesis(JSON.parse(saved));
+      const savedPpto = localStorage.getItem('subtek-ppto-v6');
       if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
-    } catch (error) { 
-      console.error("Error local:", error); 
-    }
-
-    // Paso B: Quitar el candado de seguridad para permitir guardado
+    } catch (e) {}
+    
     setDatosCargados(true);
-
-    // Paso C: Traer datos de la nube en segundo plano
     cargarDatosNube();
   }, []);
 
-  // 2. GUARDADO AUTOMÁTICO PROTEGIDO
+  // 2. GUARDADO LOCAL AUTOMÁTICO (A prueba de F5)
   useEffect(() => {
-    // Solo guardará si ya terminó de leer la memoria (datosCargados === true)
     if (isClient && datosCargados) {
-      localStorage.setItem('subtek-hipotesis-v5', JSON.stringify(hipotesis));
-      localStorage.setItem('subtek-presupuesto-v5', presupuestoTotalSubtek.toString());
+      localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
+      localStorage.setItem('subtek-ppto-v6', presupuestoTotalSubtek.toString());
     }
   }, [hipotesis, presupuestoTotalSubtek, isClient, datosCargados]);
 
+  // 3. FUNCIONES DE LECTURA Y ESCRITURA EN NUBE
   const cargarDatosNube = async () => {
-    if (!supabase) return;
     try {
-      const { data: hipData, error } = await supabase.from('hipotesis').select('*');
-      if (error) throw error;
+      const { data: hipData, error: errorHip } = await supabase.from('hipotesis').select('*');
+      if (errorHip) throw errorHip;
+      if (hipData && hipData.length > 0) setHipotesis(hipData as Hipotesis[]);
       
-      // Solo sobreescribe si la nube realmente tiene datos
-      if (hipData && hipData.length > 0) {
-        setHipotesis(hipData as Hipotesis[]);
+      const { data: pptoData, error: errorPpto } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
+      if (!errorPpto && pptoData) setPresupuestoTotalSubtek(pptoData.total);
+    } catch (error: any) { 
+      console.error("Error al cargar de la nube:", error.message); 
+    }
+  };
+
+  const forzarGuardadoNube = async () => {
+    setIsSyncing(true);
+    try {
+      // Guarda todas las hipótesis
+      if (hipotesis.length > 0) {
+        const { error: errorHip } = await supabase.from('hipotesis').upsert(hipotesis);
+        if (errorHip) throw new Error("Error en proyectos: " + errorHip.message);
       }
       
-      const { data: pptoData } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
-      if (pptoData) setPresupuestoTotalSubtek(pptoData.total);
-      
-      setSyncStatus('ONLINE - NUBE SINCRONIZADA');
-    } catch (error) { 
-      console.error("Error nube:", error); 
-      setSyncStatus('MODO OFFLINE (Guardado Local Activo)');
+      // Guarda el presupuesto global
+      const { error: errorPpto } = await supabase.from('presupuesto_global').upsert({ id: 1, total: presupuestoTotalSubtek });
+      if (errorPpto) throw new Error("Error en presupuesto: " + errorPpto.message);
+
+      setHayCambiosLocales(false);
+      alert("¡Sincronización exitosa! Los datos están seguros en la nube de Subtek.");
+    } catch (error: any) {
+      console.error("Fallo la sincronización:", error);
+      alert("ATENCIÓN: No se pudo guardar en la nube.\nMotivo: " + error.message);
+    } finally {
+      setIsSyncing(false);
     }
   };
 
-  // 3. FUNCIONES DE OPERACIÓN Y SINCRONIZACIÓN
-  const guardarPresupuestoTotal = async (valor: number) => {
-    setPresupuestoTotalSubtek(valor);
-    if (supabase) {
-      try { await supabase.from('presupuesto_global').upsert({ id: 1, total: valor }); } catch (e) {}
-    }
-  };
-
-  const agregarHipotesis = async () => {
+  // 4. FUNCIONES DE MODIFICACIÓN (Marcan que hay cambios sin guardar)
+  const agregarHipotesis = () => {
     const nueva: Hipotesis = {
-      id: Math.random().toString(36).substr(2, 9),
-      gerencia: gerenciaActiva === 'Dashboard Global' ? 'Gerencia General' : gerenciaActiva,
+      id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' ? 'Gerencia General' : gerenciaActiva,
       nombre: '', responsable: '', presupuestoAsignado: 0, presupuestoGastado: 0,
-      fechaInicio: new Date().toISOString().split('T')[0], fechaLimite: '',
-      avance: 0, estatus: 'Sin iniciar', veredicto: 'Pendiente', observaciones: '', evidencia: '', subtareas: []
+      fechaInicio: new Date().toISOString().split('T')[0], fechaLimite: '', avance: 0, estatus: 'Sin iniciar', veredicto: 'Pendiente', observaciones: '', evidencia: '', subtareas: []
     };
     setHipotesis([nueva, ...hipotesis]);
+    setHayCambiosLocales(true);
     if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('Gerencia General');
-    if (supabase) {
-      try { await supabase.from('hipotesis').insert(nueva); } catch (e) {}
-    }
   };
 
-  const syncHipotesis = async (newState: Hipotesis[], id: string) => {
-    setHipotesis(newState);
-    if (supabase && datosCargados) {
-      try {
-        const target = newState.find(h => h.id === id);
-        if (target) await supabase.from('hipotesis').upsert(target);
-      } catch (e) {}
-    }
-  };
-
-  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: string | number) => {
-    const newState = hipotesis.map(h => h.id === id ? { ...h, [campo]: valor } : h);
-    syncHipotesis(newState, id);
+  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
+    setHipotesis(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h));
+    setHayCambiosLocales(true);
   };
 
   const agregarSubtarea = (id: string, txt: string) => {
     if (!txt.trim()) return;
-    const newState = hipotesis.map(h => h.id === id ? { ...h, subtareas: [...(h.subtareas || []), { id: Math.random().toString(36).substr(2, 5), texto: txt, completada: false }] } : h);
-    syncHipotesis(newState, id);
+    setHipotesis(prev => prev.map(h => h.id === id ? { ...h, subtareas: [...(h.subtareas || []), { id: Math.random().toString(36).substr(2, 5), texto: txt, completada: false }] } : h));
+    setHayCambiosLocales(true);
   };
 
   const toggleSubtarea = (idHip: string, idSub: string) => {
-    const newState = hipotesis.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.map(s => s.id === idSub ? { ...s, completada: !s.completada } : s) } : h);
-    syncHipotesis(newState, idHip);
+    setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.map(s => s.id === idSub ? { ...s, completada: !s.completada } : s) } : h));
+    setHayCambiosLocales(true);
   };
 
   const borrarSubtarea = (idHip: string, idSub: string) => {
-    const newState = hipotesis.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.filter(s => s.id !== idSub) } : h);
-    syncHipotesis(newState, idHip);
+    setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.filter(s => s.id !== idSub) } : h));
+    setHayCambiosLocales(true);
   };
 
   const confirmarBorrado = async () => {
     if (modalBorrar) {
       setHipotesis(prev => prev.filter(h => h.id !== modalBorrar));
-      if (supabase) {
-        try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch (e) {}
-      }
+      try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){}
       setModalBorrar(null);
     }
   };
@@ -211,15 +193,17 @@ export default function SubtekDashboard() {
             <div className="flex flex-col"><span className="text-xl font-black tracking-widest text-white">SUBTEK</span><span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span></div>
           </div>
           <div className="flex items-center gap-4">
-            <span className={`flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded border shadow-lg ${syncStatus.includes('ONLINE') ? 'text-green-400 bg-green-950/40 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : 'text-orange-400 bg-orange-950/40 border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.2)]'}`}>
-               {syncStatus.includes('ONLINE') && (
-                 <span className="relative flex h-2 w-2">
-                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                 </span>
-               )}
-               {syncStatus}
-            </span>
+            
+            {/* BOTÓN GIGANTE DE GUARDAR EN NUBE */}
+            <button 
+              onClick={forzarGuardadoNube} 
+              disabled={isSyncing}
+              className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}
+            >
+              <CloudUpload size={20} /> 
+              {isSyncing ? 'Guardando...' : hayCambiosLocales ? '¡Guardar en Servidor!' : 'Nube Sincronizada'}
+            </button>
+
             <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan hover:bg-subtek-cyan hover:text-black text-subtek-cyan px-4 py-2 rounded transition-all duration-300 hover:scale-105 font-medium shadow-[0_0_10px_rgba(0,240,255,0.1)]"><Download size={18} /> Exportar (BI)</button>
           </div>
         </div>
@@ -231,7 +215,7 @@ export default function SubtekDashboard() {
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
           <div className="text-sm md:text-base text-slate-300">
             <span className="font-bold text-subtek-cyan text-lg">¡Hola equipo, soy Subi! 🤖</span> <br/>
-            El sistema ha activado la <b>Arquitectura Híbrida</b>. Tu información está 100% a salvo de recargas de página porque se guarda instantáneamente de forma local, y en segundo plano sincroniza con nuestra base de datos. ¡Iteremos sin miedo!
+            Cualquier cambio que hagas quedará protegido en tu computador. Cuando estés listo, <b>recuerda presionar el botón de "Guardar en Servidor" arriba</b> para que los datos viajen a la base central de Subtek y todos podamos verlos.
           </div>
         </div>
       </div>
@@ -278,7 +262,7 @@ export default function SubtekDashboard() {
              <span className="text-slate-400 text-xs font-bold mb-2 uppercase tracking-widest flex items-center gap-2"><Info size={14}/> Configuración Global</span>
              <div className="flex items-center gap-2 w-full max-w-md">
                 <span className="text-lg font-black text-subtek-cyan">Fondo Total Subtek: $</span>
-                <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan transition-colors flex-1 text-white" value={presupuestoTotalSubtek || ''} onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} />
+                <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan transition-colors flex-1 text-white" value={presupuestoTotalSubtek || ''} onChange={(e) => { guardarPresupuestoTotal(Number(e.target.value)); setHayCambiosLocales(true); }} />
              </div>
            </div>
         )}
