@@ -34,45 +34,59 @@ export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
   const [presupuestoTotalSubtek, setPresupuestoTotalSubtek] = useState<number>(0);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
+  
+  // Variables de control de estado seguro
   const [isClient, setIsClient] = useState(false);
+  const [datosCargados, setDatosCargados] = useState(false); // <--- NUEVO CANDADO LÓGICO
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
   const [syncStatus, setSyncStatus] = useState<string>('Conectando...');
 
-  // 1. CARGA INICIAL HÍBRIDA (Offline-First para Subtek)
+  // 1. CARGA INICIAL HÍBRIDA (A prueba de F5)
   useEffect(() => {
     setIsClient(true);
     
-    // Primero, recupera lo local inmediatamente (A prueba de F5)
+    // Paso A: Leer disco local primero
     try {
-      const saved = localStorage.getItem('subtek-hipotesis-v4');
-      if (saved) setHipotesis(JSON.parse(saved));
-      const savedPpto = localStorage.getItem('subtek-presupuesto-v4');
+      const saved = localStorage.getItem('subtek-hipotesis-v5');
+      if (saved && saved !== '[]') {
+        setHipotesis(JSON.parse(saved));
+      }
+      const savedPpto = localStorage.getItem('subtek-presupuesto-v5');
       if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
-    } catch (error) { console.error("Error local:", error); }
+    } catch (error) { 
+      console.error("Error local:", error); 
+    }
 
-    // Segundo, intenta traer de la nube de forma asíncrona
+    // Paso B: Quitar el candado de seguridad para permitir guardado
+    setDatosCargados(true);
+
+    // Paso C: Traer datos de la nube en segundo plano
     cargarDatosNube();
   }, []);
 
-  // 2. GUARDADO AUTOMÁTICO EN TIEMPO REAL (Respaldo Local Fuerte)
+  // 2. GUARDADO AUTOMÁTICO PROTEGIDO
   useEffect(() => {
-    if (isClient) {
-      localStorage.setItem('subtek-hipotesis-v4', JSON.stringify(hipotesis));
-      localStorage.setItem('subtek-presupuesto-v4', presupuestoTotalSubtek.toString());
+    // Solo guardará si ya terminó de leer la memoria (datosCargados === true)
+    if (isClient && datosCargados) {
+      localStorage.setItem('subtek-hipotesis-v5', JSON.stringify(hipotesis));
+      localStorage.setItem('subtek-presupuesto-v5', presupuestoTotalSubtek.toString());
     }
-  }, [hipotesis, presupuestoTotalSubtek, isClient]);
+  }, [hipotesis, presupuestoTotalSubtek, isClient, datosCargados]);
 
   const cargarDatosNube = async () => {
     if (!supabase) return;
     try {
       const { data: hipData, error } = await supabase.from('hipotesis').select('*');
       if (error) throw error;
+      
+      // Solo sobreescribe si la nube realmente tiene datos
       if (hipData && hipData.length > 0) {
         setHipotesis(hipData as Hipotesis[]);
       }
       
       const { data: pptoData } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
       if (pptoData) setPresupuestoTotalSubtek(pptoData.total);
+      
       setSyncStatus('ONLINE - NUBE SINCRONIZADA');
     } catch (error) { 
       console.error("Error nube:", error); 
@@ -80,7 +94,7 @@ export default function SubtekDashboard() {
     }
   };
 
-  // 3. FUNCIONES DE GUARDADO (Doble vía: Local y Cloud)
+  // 3. FUNCIONES DE OPERACIÓN Y SINCRONIZACIÓN
   const guardarPresupuestoTotal = async (valor: number) => {
     setPresupuestoTotalSubtek(valor);
     if (supabase) {
@@ -105,7 +119,7 @@ export default function SubtekDashboard() {
 
   const syncHipotesis = async (newState: Hipotesis[], id: string) => {
     setHipotesis(newState);
-    if (supabase) {
+    if (supabase && datosCargados) {
       try {
         const target = newState.find(h => h.id === id);
         if (target) await supabase.from('hipotesis').upsert(target);
