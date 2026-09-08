@@ -40,7 +40,7 @@ export default function SubtekDashboard() {
   const [hayCambiosLocales, setHayCambiosLocales] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
-  // 1. CARGA INICIAL (Lee primero el disco duro, luego la nube)
+  // 1. CARGA INICIAL
   useEffect(() => {
     setIsClient(true);
     try {
@@ -54,7 +54,7 @@ export default function SubtekDashboard() {
     cargarDatosNube();
   }, []);
 
-  // 2. GUARDADO LOCAL AUTOMÁTICO (A prueba de F5)
+  // 2. GUARDADO LOCAL AUTOMÁTICO
   useEffect(() => {
     if (isClient && datosCargados) {
       localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
@@ -71,35 +71,31 @@ export default function SubtekDashboard() {
       
       const { data: pptoData, error: errorPpto } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
       if (!errorPpto && pptoData) setPresupuestoTotalSubtek(pptoData.total);
-    } catch (error: any) { 
-      console.error("Error al cargar de la nube:", error.message); 
+    } catch (error: unknown) { 
+      console.error("Error al cargar de la nube"); 
     }
   };
 
   const forzarGuardadoNube = async () => {
     setIsSyncing(true);
     try {
-      // Guarda todas las hipótesis
       if (hipotesis.length > 0) {
         const { error: errorHip } = await supabase.from('hipotesis').upsert(hipotesis);
         if (errorHip) throw new Error("Error en proyectos: " + errorHip.message);
       }
-      
-      // Guarda el presupuesto global
       const { error: errorPpto } = await supabase.from('presupuesto_global').upsert({ id: 1, total: presupuestoTotalSubtek });
       if (errorPpto) throw new Error("Error en presupuesto: " + errorPpto.message);
 
       setHayCambiosLocales(false);
       alert("¡Sincronización exitosa! Los datos están seguros en la nube de Subtek.");
-    } catch (error: any) {
-      console.error("Fallo la sincronización:", error);
-      alert("ATENCIÓN: No se pudo guardar en la nube.\nMotivo: " + error.message);
+    } catch (error: unknown) {
+      alert("ATENCIÓN: No se pudo guardar en la nube.");
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // 4. FUNCIONES DE MODIFICACIÓN (Marcan que hay cambios sin guardar)
+  // 4. FUNCIONES DE MODIFICACIÓN
   const agregarHipotesis = () => {
     const nueva: Hipotesis = {
       id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' ? 'Gerencia General' : gerenciaActiva,
@@ -111,7 +107,8 @@ export default function SubtekDashboard() {
     if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('Gerencia General');
   };
 
-  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
+  // Corrección estricta de TypeScript para evitar bloqueos de Vercel
+  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: string | number) => {
     setHipotesis(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h));
     setHayCambiosLocales(true);
   };
@@ -142,7 +139,7 @@ export default function SubtekDashboard() {
 
   const exportarCSV = () => {
     const headers = ['ID', 'Gerencia', 'Nombre_Proyecto', 'Responsable', 'Fecha_Inicio', 'Fecha_Limite', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Evidencia_URL', 'Observaciones', 'Subtarea_Texto', 'Subtarea_Estado'];
-    const rows: any[][] = [];
+    const rows: (string | number)[][] = [];
     hipotesis.forEach(h => {
       const obsLimpia = h.observaciones?.replace(/\n/g, " ").replace(/"/g, "'") || "";
       const evLimpia = h.evidencia ? `"${h.evidencia}"` : "";
@@ -194,7 +191,6 @@ export default function SubtekDashboard() {
           </div>
           <div className="flex items-center gap-4">
             
-            {/* BOTÓN GIGANTE DE GUARDAR EN NUBE */}
             <button 
               onClick={forzarGuardadoNube} 
               disabled={isSyncing}
@@ -209,7 +205,7 @@ export default function SubtekDashboard() {
         </div>
       </header>
 
-      {/* MASCOTA SUBI - NUEVO MENSAJE */}
+      {/* MASCOTA SUBI - MENSAJE RESTAURADO */}
       <div className="bg-gradient-to-r from-subtek-blue to-[#1a0f2e] border-b border-subtek-cyan/20 p-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
@@ -240,10 +236,9 @@ export default function SubtekDashboard() {
           )}
         </div>
 
-        {/* VISTA DASHBOARD GLOBAL */}
+        {/* VISTA DASHBOARD GLOBAL (CON EDICIÓN DE PRESUPUESTO LIBERADA) */}
         {gerenciaActiva === 'Dashboard Global' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            {/* EDICIÓN DE PRESUPUESTO GLOBAL HABILITADA */}
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
               <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
               <div className="flex items-center justify-center gap-2">
