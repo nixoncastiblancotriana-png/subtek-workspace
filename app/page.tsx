@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
-  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X
+  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar
 } from 'lucide-react';
 
 type Gerencia = 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos';
@@ -22,6 +22,8 @@ interface Hipotesis {
   responsable: string;
   presupuestoAsignado: number;
   presupuestoGastado: number;
+  fechaInicio: string;
+  fechaLimite: string;
   avance: number;
   estatus: Estatus;
   veredicto: Veredicto;
@@ -40,13 +42,18 @@ export default function SubtekDashboard() {
   const [isClient, setIsClient] = useState(false);
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
 
+  // Carga inicial robusta
   useEffect(() => {
     setIsClient(true);
-    const saved = localStorage.getItem('subtek-hipotesis');
-    if (saved) setHipotesis(JSON.parse(saved));
-    
-    const savedPpto = localStorage.getItem('subtek-presupuesto');
-    if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
+    try {
+      const saved = localStorage.getItem('subtek-hipotesis');
+      if (saved) setHipotesis(JSON.parse(saved));
+      
+      const savedPpto = localStorage.getItem('subtek-presupuesto');
+      if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
+    } catch (error) {
+      console.error("Error cargando datos locales:", error);
+    }
   }, []);
 
   const guardarDatos = (data: Hipotesis[]) => {
@@ -67,6 +74,8 @@ export default function SubtekDashboard() {
       responsable: '',
       presupuestoAsignado: 0,
       presupuestoGastado: 0,
+      fechaInicio: new Date().toISOString().split('T')[0],
+      fechaLimite: '',
       avance: 0,
       estatus: 'Sin iniciar',
       veredicto: 'Pendiente',
@@ -118,7 +127,6 @@ export default function SubtekDashboard() {
     });
     guardarDatos(act);
   };
-  // ---------------------------
 
   const confirmarBorrado = () => {
     if (modalBorrar) {
@@ -128,7 +136,7 @@ export default function SubtekDashboard() {
   };
 
   const exportarCSV = () => {
-    const headers = ['ID', 'Gerencia', 'Nombre_Proyecto', 'Responsable', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Evidencia_URL', 'Observaciones', 'Subtarea_Texto', 'Subtarea_Estado'];
+    const headers = ['ID', 'Gerencia', 'Nombre_Proyecto', 'Responsable', 'Fecha_Inicio', 'Fecha_Limite', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Evidencia_URL', 'Observaciones', 'Subtarea_Texto', 'Subtarea_Estado'];
     const rows: any[][] = [];
 
     hipotesis.forEach(h => {
@@ -137,7 +145,7 @@ export default function SubtekDashboard() {
 
       if (h.subtareas.length === 0) {
         rows.push([
-          h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.presupuestoAsignado, h.presupuestoGastado, 
+          h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.fechaInicio, h.fechaLimite, h.presupuestoAsignado, h.presupuestoGastado, 
           h.avance, h.estatus, h.veredicto, evLimpia, `"${obsLimpia}"`, "", ""
         ]);
       } else {
@@ -145,7 +153,7 @@ export default function SubtekDashboard() {
           const subTexto = sub.texto.replace(/\n/g, " ").replace(/"/g, "'");
           const subEstado = sub.completada ? "Completada" : "Pendiente";
           rows.push([
-            h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.presupuestoAsignado, h.presupuestoGastado, 
+            h.id, h.gerencia, `"${h.nombre}"`, `"${h.responsable}"`, h.fechaInicio, h.fechaLimite, h.presupuestoAsignado, h.presupuestoGastado, 
             h.avance, h.estatus, h.veredicto, evLimpia, `"${obsLimpia}"`, `"${subTexto}"`, subEstado
           ]);
         });
@@ -166,7 +174,6 @@ export default function SubtekDashboard() {
 
   const hipotesisFiltradas = gerenciaActiva === 'Dashboard Global' ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
   
-  // Lógica Financiera de Subtek
   const activasAsignado = hipotesis.filter(h => h.estatus !== 'Finalizado').reduce((acc, curr) => acc + curr.presupuestoAsignado, 0);
   const finalizadasGastado = hipotesis.filter(h => h.estatus === 'Finalizado').reduce((acc, curr) => acc + curr.presupuestoGastado, 0);
   const presupuestoDisponible = presupuestoTotalSubtek - activasAsignado - finalizadasGastado;
@@ -176,14 +183,14 @@ export default function SubtekDashboard() {
   return (
     <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100 font-sans">
       
-      {/* MODAL DE CONFIRMACIÓN DE BORRADO */}
+      {/* MODAL DE BORRADO */}
       {modalBorrar && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
           <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2">
               <AlertTriangle className="text-red-500" /> Confirmar Eliminación
             </h3>
-            <p className="text-slate-300 mb-6">¿Estás absolutamente seguro de borrar este proyecto? Se perderá todo el historial de presupuesto, observaciones y avance. Esta acción no se puede deshacer.</p>
+            <p className="text-slate-300 mb-6">¿Estás absolutamente seguro de borrar este proyecto? Se perderá todo el historial. Esta acción no se puede deshacer.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalBorrar(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
               <button onClick={confirmarBorrado} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
@@ -192,7 +199,7 @@ export default function SubtekDashboard() {
         </div>
       )}
 
-      {/* HEADER CORPORATIVO */}
+      {/* HEADER */}
       <header className="bg-[#1a0f2e] border-b border-subtek-cyan/30 p-4 sticky top-0 z-50 shadow-md shadow-subtek-cyan/10">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
           <div className="flex items-center gap-4">
@@ -221,7 +228,7 @@ export default function SubtekDashboard() {
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
         
-        {/* NAVEGACIÓN DE PESTAÑAS */}
+        {/* NAVEGACIÓN */}
         <div className="flex flex-wrap gap-2 mb-8 border-b border-slate-700 pb-2">
           {GERENCIAS.map(g => (
             <button key={g} onClick={() => setGerenciaActiva(g)} className={`px-4 py-2 rounded-t-lg font-medium transition-all duration-300 flex items-center gap-2 ${gerenciaActiva === g ? 'bg-subtek-cyan text-black shadow-[0_-4px_15px_rgba(0,240,255,0.3)] transform -translate-y-1' : 'bg-subtek-card text-slate-400 hover:text-white hover:bg-slate-700'}`}>
@@ -243,41 +250,20 @@ export default function SubtekDashboard() {
           )}
         </div>
 
-        {/* VISTA DASHBOARD GLOBAL - INDICADORES */}
+        {/* VISTA DASHBOARD GLOBAL */}
         {gerenciaActiva === 'Dashboard Global' && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
               <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
               <div className="flex items-center justify-center gap-2">
                  <span className="text-4xl font-black text-white">$</span>
-                 <input 
-                    type="number" 
-                    placeholder="Ingrese Presupuesto Total"
-                    className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors" 
-                    value={presupuestoTotalSubtek || ''} 
-                    onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} 
-                 />
+                 <input type="number" placeholder="Ingrese Presupuesto Total" className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors" value={presupuestoTotalSubtek || ''} onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} />
               </div>
             </div>
-
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
-              <span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span>
-              <span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span>
-            </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
-              <span className="text-slate-400 text-sm font-bold mb-1">P. Quemado (Finalizadas)</span>
-              <span className="text-2xl font-black text-red-400">${finalizadasGastado.toLocaleString()}</span>
-            </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]">
-              <span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span>
-              <span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>
-                ${presupuestoDisponible.toLocaleString()}
-              </span>
-            </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg hover:border-subtek-cyan transition-colors">
-              <span className="text-slate-400 text-sm font-bold mb-1">Proyectos Totales / Validados</span>
-              <span className="text-2xl font-black text-white">{hipotesis.length} / <span className="text-green-400">{validadas}</span></span>
-            </div>
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span><span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span></div>
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Quemado (Finalizadas)</span><span className="text-2xl font-black text-red-400">${finalizadasGastado.toLocaleString()}</span></div>
+            <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"><span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span><span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>${presupuestoDisponible.toLocaleString()}</span></div>
+            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">Proyectos Totales / Validados</span><span className="text-2xl font-black text-white">{hipotesis.length} / <span className="text-green-400">{validadas}</span></span></div>
           </div>
         )}
 
@@ -307,20 +293,14 @@ export default function SubtekDashboard() {
               return (
                 <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-5 shadow-xl transition-all duration-500 hover:shadow-2xl relative overflow-hidden ${isGlobal ? 'opacity-90' : ''}`}>
                   
-                  {/* Titulo y Borrar */}
+                  {/* Titulo */}
                   <div className="flex justify-between gap-4 items-start">
                     <div className="w-full">
                       {isGlobal && <span className="text-[10px] bg-subtek-cyan text-black font-bold px-2 py-0.5 rounded mb-2 inline-block uppercase tracking-wider">{hip.gerencia}</span>}
-                      <input type="text" placeholder="Ej: Piloto de IA para etiquetado NASSCO v8..."
-                        className={`bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`}
-                        value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)}
-                        disabled={isGlobal}
-                      />
+                      <input type="text" placeholder="Ej: Piloto de IA..." className={`bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)} disabled={isGlobal} />
                     </div>
                     {!isGlobal && (
-                      <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300" title="Borrar Proyecto">
-                        <Trash2 size={20} />
-                      </button>
+                      <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300" title="Borrar Proyecto"><Trash2 size={20} /></button>
                     )}
                   </div>
 
@@ -347,20 +327,27 @@ export default function SubtekDashboard() {
                     <div className="flex flex-col gap-1">
                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
                       <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}>
-                        <option value="">Seleccionar...</option>
-                        {RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        <option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
                       </select>
                     </div>
                   </div>
 
-                  {/* BLOQUE MEDIO: Finanzas y Avance */}
+                  {/* BLOQUE MEDIO: Fechas, Finanzas y Avance (RESTAURADO) */}
                   <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto Asignado ($)</label>
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Inicio</label>
+                      <input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaInicio} onChange={(e) => actualizarHipotesis(hip.id, 'fechaInicio', e.target.value)} disabled={isGlobal} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Límite</label>
+                      <input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaLimite} onChange={(e) => actualizarHipotesis(hip.id, 'fechaLimite', e.target.value)} disabled={isGlobal} />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">P. Asignado ($)</label>
                       <input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-lg text-white ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoAsignado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} disabled={isGlobal} />
                     </div>
                     <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Presupuesto Gastado ($)</label>
+                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">P. Gastado ($)</label>
                       <input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-red-400 transition-colors w-full text-lg text-red-400 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoGastado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} disabled={isGlobal} />
                     </div>
                     
@@ -375,10 +362,8 @@ export default function SubtekDashboard() {
 
                   {/* BLOQUE INFERIOR: Subtareas, Evidencia y Observaciones */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    {/* Subtareas */}
                     <div className="flex flex-col gap-2">
-                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas Operativas</label>
+                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas</label>
                        <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col gap-2 h-44 overflow-y-auto">
                           {hip.subtareas.map(sub => (
                             <div key={sub.id} className="flex items-start gap-2 group">
@@ -390,42 +375,18 @@ export default function SubtekDashboard() {
                             </div>
                           ))}
                           {!isGlobal && (
-                            <input 
-                              type="text" 
-                              placeholder="+ Escribir y presionar Enter..."
-                              className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1"
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  agregarSubtarea(hip.id, e.currentTarget.value);
-                                  e.currentTarget.value = '';
-                                }
-                              }}
-                            />
+                            <input type="text" placeholder="+ Escribir y presionar Enter..." className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1" onKeyDown={(e) => { if (e.key === 'Enter') { agregarSubtarea(hip.id, e.currentTarget.value); e.currentTarget.value = ''; } }} />
                           )}
                        </div>
                     </div>
-
-                    {/* Observaciones y Evidencia */}
                     <div className="flex flex-col gap-3">
                       <div className="flex flex-col gap-1">
                         <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Info size={14}/> Observaciones</label>
-                        <textarea 
-                          placeholder="Anota aquí lecciones, bloqueos o insights..."
-                          className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`}
-                          value={hip.observaciones} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)}
-                          disabled={isGlobal}
-                        />
+                        <textarea placeholder="Anota aquí lecciones..." className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.observaciones} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)} disabled={isGlobal} />
                       </div>
-                      
                       <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><LinkIcon size={14}/> Ruta de Evidencia (URL)</label>
-                        <input 
-                          type="url" 
-                          placeholder="https://drive.google.com/..."
-                          className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`}
-                          value={hip.evidencia} onChange={(e) => actualizarHipotesis(hip.id, 'evidencia', e.target.value)}
-                          disabled={isGlobal}
-                        />
+                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><LinkIcon size={14}/> Evidencia (URL)</label>
+                        <input type="url" placeholder="https://drive.google.com/..." className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.evidencia} onChange={(e) => actualizarHipotesis(hip.id, 'evidencia', e.target.value)} disabled={isGlobal} />
                       </div>
                     </div>
                   </div>
