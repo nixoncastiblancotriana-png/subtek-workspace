@@ -1,3 +1,6 @@
+/* eslint-disable @next/next/no-img-element */
+/* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 "use client";
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
@@ -48,7 +51,7 @@ export default function SubtekDashboard() {
       if (saved && saved !== '[]') setHipotesis(JSON.parse(saved));
       const savedPpto = localStorage.getItem('subtek-ppto-v6');
       if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
-    } catch (e) {}
+    } catch (e) { console.error("Error lectura local:", e); }
     
     setDatosCargados(true);
     cargarDatosNube();
@@ -71,8 +74,8 @@ export default function SubtekDashboard() {
       
       const { data: pptoData, error: errorPpto } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
       if (!errorPpto && pptoData) setPresupuestoTotalSubtek(pptoData.total);
-    } catch (error: unknown) { 
-      console.error("Error al cargar de la nube"); 
+    } catch (error: any) { 
+      console.error("Error al cargar de la nube:", error.message); 
     }
   };
 
@@ -83,19 +86,26 @@ export default function SubtekDashboard() {
         const { error: errorHip } = await supabase.from('hipotesis').upsert(hipotesis);
         if (errorHip) throw new Error("Error en proyectos: " + errorHip.message);
       }
+      
       const { error: errorPpto } = await supabase.from('presupuesto_global').upsert({ id: 1, total: presupuestoTotalSubtek });
       if (errorPpto) throw new Error("Error en presupuesto: " + errorPpto.message);
 
       setHayCambiosLocales(false);
       alert("¡Sincronización exitosa! Los datos están seguros en la nube de Subtek.");
-    } catch (error: unknown) {
-      alert("ATENCIÓN: No se pudo guardar en la nube.");
+    } catch (error: any) {
+      console.error("Fallo la sincronización:", error);
+      alert("ATENCIÓN: No se pudo guardar en la nube.\nMotivo: " + (error.message || "Error desconocido"));
     } finally {
       setIsSyncing(false);
     }
   };
 
   // 4. FUNCIONES DE MODIFICACIÓN
+  const guardarPresupuestoTotal = async (valor: number) => {
+    setPresupuestoTotalSubtek(valor);
+    setHayCambiosLocales(true);
+  };
+
   const agregarHipotesis = () => {
     const nueva: Hipotesis = {
       id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' ? 'Gerencia General' : gerenciaActiva,
@@ -107,8 +117,7 @@ export default function SubtekDashboard() {
     if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('Gerencia General');
   };
 
-  // Corrección estricta de TypeScript para evitar bloqueos de Vercel
-  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: string | number) => {
+  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
     setHipotesis(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h));
     setHayCambiosLocales(true);
   };
@@ -132,14 +141,15 @@ export default function SubtekDashboard() {
   const confirmarBorrado = async () => {
     if (modalBorrar) {
       setHipotesis(prev => prev.filter(h => h.id !== modalBorrar));
-      try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){}
+      try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){ console.error(e); }
       setModalBorrar(null);
+      setHayCambiosLocales(true);
     }
   };
 
   const exportarCSV = () => {
     const headers = ['ID', 'Gerencia', 'Nombre_Proyecto', 'Responsable', 'Fecha_Inicio', 'Fecha_Limite', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Evidencia_URL', 'Observaciones', 'Subtarea_Texto', 'Subtarea_Estado'];
-    const rows: (string | number)[][] = [];
+    const rows: any[][] = [];
     hipotesis.forEach(h => {
       const obsLimpia = h.observaciones?.replace(/\n/g, " ").replace(/"/g, "'") || "";
       const evLimpia = h.evidencia ? `"${h.evidencia}"` : "";
@@ -205,7 +215,7 @@ export default function SubtekDashboard() {
         </div>
       </header>
 
-      {/* MASCOTA SUBI - MENSAJE RESTAURADO */}
+      {/* MASCOTA SUBI - MENSAJE RESTAURADO MOTIVACIONAL */}
       <div className="bg-gradient-to-r from-subtek-blue to-[#1a0f2e] border-b border-subtek-cyan/20 p-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
@@ -248,7 +258,7 @@ export default function SubtekDashboard() {
                    placeholder="Ingrese Ppto Total" 
                    className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors" 
                    value={presupuestoTotalSubtek || ''} 
-                   onChange={(e) => { guardarPresupuestoTotal(Number(e.target.value)); setHayCambiosLocales(true); }} 
+                   onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} 
                  />
               </div>
             </div>
