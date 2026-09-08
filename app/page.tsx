@@ -36,28 +36,56 @@ export default function SubtekDashboard() {
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   const [isClient, setIsClient] = useState(false);
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
+  const [syncStatus, setSyncStatus] = useState<string>('Conectando...');
 
-  // 1. CARGA INICIAL DESDE LA NUBE
+  // 1. CARGA INICIAL HÍBRIDA (Offline-First para Subtek)
   useEffect(() => {
     setIsClient(true);
+    
+    // Primero, recupera lo local inmediatamente (A prueba de F5)
+    try {
+      const saved = localStorage.getItem('subtek-hipotesis-v4');
+      if (saved) setHipotesis(JSON.parse(saved));
+      const savedPpto = localStorage.getItem('subtek-presupuesto-v4');
+      if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
+    } catch (error) { console.error("Error local:", error); }
+
+    // Segundo, intenta traer de la nube de forma asíncrona
     cargarDatosNube();
   }, []);
+
+  // 2. GUARDADO AUTOMÁTICO EN TIEMPO REAL (Respaldo Local Fuerte)
+  useEffect(() => {
+    if (isClient) {
+      localStorage.setItem('subtek-hipotesis-v4', JSON.stringify(hipotesis));
+      localStorage.setItem('subtek-presupuesto-v4', presupuestoTotalSubtek.toString());
+    }
+  }, [hipotesis, presupuestoTotalSubtek, isClient]);
 
   const cargarDatosNube = async () => {
     if (!supabase) return;
     try {
-      const { data: hipData } = await supabase.from('hipotesis').select('*');
-      if (hipData) setHipotesis(hipData as Hipotesis[]);
+      const { data: hipData, error } = await supabase.from('hipotesis').select('*');
+      if (error) throw error;
+      if (hipData && hipData.length > 0) {
+        setHipotesis(hipData as Hipotesis[]);
+      }
       
       const { data: pptoData } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
       if (pptoData) setPresupuestoTotalSubtek(pptoData.total);
-    } catch (error) { console.error("Error cargando nube:", error); }
+      setSyncStatus('ONLINE - NUBE SINCRONIZADA');
+    } catch (error) { 
+      console.error("Error nube:", error); 
+      setSyncStatus('MODO OFFLINE (Guardado Local Activo)');
+    }
   };
 
-  // 2. FUNCIONES DE GUARDADO EN NUBE PERMANENTE
+  // 3. FUNCIONES DE GUARDADO (Doble vía: Local y Cloud)
   const guardarPresupuestoTotal = async (valor: number) => {
     setPresupuestoTotalSubtek(valor);
-    if (supabase) await supabase.from('presupuesto_global').upsert({ id: 1, total: valor });
+    if (supabase) {
+      try { await supabase.from('presupuesto_global').upsert({ id: 1, total: valor }); } catch (e) {}
+    }
   };
 
   const agregarHipotesis = async () => {
@@ -70,18 +98,22 @@ export default function SubtekDashboard() {
     };
     setHipotesis([nueva, ...hipotesis]);
     if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('Gerencia General');
-    if (supabase) await supabase.from('hipotesis').insert(nueva);
+    if (supabase) {
+      try { await supabase.from('hipotesis').insert(nueva); } catch (e) {}
+    }
   };
 
   const syncHipotesis = async (newState: Hipotesis[], id: string) => {
     setHipotesis(newState);
     if (supabase) {
-      const target = newState.find(h => h.id === id);
-      if (target) await supabase.from('hipotesis').upsert(target);
+      try {
+        const target = newState.find(h => h.id === id);
+        if (target) await supabase.from('hipotesis').upsert(target);
+      } catch (e) {}
     }
   };
 
-  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
+  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: string | number) => {
     const newState = hipotesis.map(h => h.id === id ? { ...h, [campo]: valor } : h);
     syncHipotesis(newState, id);
   };
@@ -105,7 +137,9 @@ export default function SubtekDashboard() {
   const confirmarBorrado = async () => {
     if (modalBorrar) {
       setHipotesis(prev => prev.filter(h => h.id !== modalBorrar));
-      if (supabase) await supabase.from('hipotesis').delete().eq('id', modalBorrar);
+      if (supabase) {
+        try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch (e) {}
+      }
       setModalBorrar(null);
     }
   };
@@ -146,7 +180,7 @@ export default function SubtekDashboard() {
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
           <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Confirmar Eliminación</h3>
-            <p className="text-slate-300 mb-6">¿Estás absolutamente seguro de borrar este proyecto? Se perderá permanentemente de la base de datos de Subtek.</p>
+            <p className="text-slate-300 mb-6">¿Estás absolutamente seguro de borrar este proyecto? Se perderá permanentemente del sistema.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalBorrar(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
               <button onClick={confirmarBorrado} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
@@ -163,12 +197,14 @@ export default function SubtekDashboard() {
             <div className="flex flex-col"><span className="text-xl font-black tracking-widest text-white">SUBTEK</span><span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span></div>
           </div>
           <div className="flex items-center gap-4">
-            <span className="flex items-center gap-2 text-xs font-bold text-green-400 bg-green-950/40 px-3 py-1.5 rounded border border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]">
-               <span className="relative flex h-2 w-2">
-                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                 <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-               </span>
-               ONLINE - NUBE SINCRONIZADA
+            <span className={`flex items-center gap-2 text-xs font-bold px-3 py-1.5 rounded border shadow-lg ${syncStatus.includes('ONLINE') ? 'text-green-400 bg-green-950/40 border-green-500/50 shadow-[0_0_10px_rgba(34,197,94,0.2)]' : 'text-orange-400 bg-orange-950/40 border-orange-500/50 shadow-[0_0_10px_rgba(249,115,22,0.2)]'}`}>
+               {syncStatus.includes('ONLINE') && (
+                 <span className="relative flex h-2 w-2">
+                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                   <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                 </span>
+               )}
+               {syncStatus}
             </span>
             <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan hover:bg-subtek-cyan hover:text-black text-subtek-cyan px-4 py-2 rounded transition-all duration-300 hover:scale-105 font-medium shadow-[0_0_10px_rgba(0,240,255,0.1)]"><Download size={18} /> Exportar (BI)</button>
           </div>
@@ -181,7 +217,7 @@ export default function SubtekDashboard() {
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
           <div className="text-sm md:text-base text-slate-300">
             <span className="font-bold text-subtek-cyan text-lg">¡Hola equipo, soy Subi! 🤖</span> <br/>
-            Esta plataforma está ahora conectada a nuestra nube en tiempo real. ¡Todo lo que registres se guardará permanentemente! Recuerda mantener actualizados tus hitos para no bloquear la operación de las demás gerencias.
+            El sistema ha activado la <b>Arquitectura Híbrida</b>. Tu información está 100% a salvo de recargas de página porque se guarda instantáneamente de forma local, y en segundo plano sincroniza con nuestra base de datos. ¡Iteremos sin miedo!
           </div>
         </div>
       </div>
@@ -213,7 +249,7 @@ export default function SubtekDashboard() {
               <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
               <div className="flex items-center justify-center gap-2">
                  <span className="text-4xl font-black text-white">$</span>
-                 <input type="number" placeholder="Ingrese Presupuesto Total" className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors cursor-not-allowed opacity-90" value={presupuestoTotalSubtek || ''} disabled={true} title="El presupuesto total se edita desde la Gerencia General" />
+                 <input type="number" placeholder="Ingrese Ppto Total" className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors cursor-not-allowed opacity-90" value={presupuestoTotalSubtek || ''} disabled={true} title="Editable en Gerencia General" />
               </div>
             </div>
             <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span><span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span></div>
@@ -223,10 +259,9 @@ export default function SubtekDashboard() {
           </div>
         )}
 
-        {/* SI ES GERENCIA GENERAL, PERMITIR EDITAR PRESUPUESTO MAESTRO */}
         {gerenciaActiva === 'Gerencia General' && (
            <div className="mb-8 bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-start shadow-[0_0_15px_rgba(0,240,255,0.1)]">
-             <span className="text-slate-400 text-xs font-bold mb-2 uppercase tracking-widest flex items-center gap-2"><Info size={14}/> Configuración Global (Solo G. General)</span>
+             <span className="text-slate-400 text-xs font-bold mb-2 uppercase tracking-widest flex items-center gap-2"><Info size={14}/> Configuración Global</span>
              <div className="flex items-center gap-2 w-full max-w-md">
                 <span className="text-lg font-black text-subtek-cyan">Fondo Total Subtek: $</span>
                 <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan transition-colors flex-1 text-white" value={presupuestoTotalSubtek || ''} onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} />
@@ -237,7 +272,7 @@ export default function SubtekDashboard() {
         {/* GRID DE TARJETAS DE PROYECTO */}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 pb-20">
           {hipotesisFiltradas.length === 0 ? (
-            <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto" para empezar a iterar.</p></div>
+            <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto".</p></div>
           ) : (
             hipotesisFiltradas.map((hip) => {
               const presupuestoValido = hip.presupuestoAsignado > 0;
@@ -255,13 +290,12 @@ export default function SubtekDashboard() {
 
               return (
                 <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-5 shadow-xl transition-all duration-500 hover:shadow-2xl relative overflow-hidden ${isGlobal ? 'opacity-90' : ''}`}>
-                  {/* Titulo */}
                   <div className="flex justify-between gap-4 items-start">
                     <div className="w-full">
                       {isGlobal && <span className="text-[10px] bg-subtek-cyan text-black font-bold px-2 py-0.5 rounded mb-2 inline-block uppercase tracking-wider">{hip.gerencia}</span>}
                       <input type="text" placeholder="Ej: Piloto de IA..." className={`bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)} disabled={isGlobal} />
                     </div>
-                    {!isGlobal && <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300" title="Borrar Proyecto"><Trash2 size={20} /></button>}
+                    {!isGlobal && <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300"><Trash2 size={20} /></button>}
                   </div>
 
                   {alertaActiva && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 p-3 rounded border border-red-900 animate-pulse"><AlertTriangle size={16} /> ¡Peligro! Alto consumo de capital frente a bajo avance.</div>}
