@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
-  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map
+  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map,
+  Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2
 } from 'lucide-react';
 
 // ==========================================
@@ -38,6 +39,13 @@ export default function SubtekDashboard() {
   const [anioPpto, setAnioPpto] = useState<number>(2026);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   
+  // ESTADO DEL ROADMAP INTERACTIVO
+  const [roadmap, setRoadmap] = useState({
+    fase1_cctv: true, fase1_vactor: true, fase1_inspeccion: true,
+    fase2_saas: false, fase2_etiquetador: false, fase2_recomendaciones: false, fase2_vision: false,
+    fase3_predictivo: false, fase3_vision_rt: false, fase3_macp: false
+  });
+
   const [isClient, setIsClient] = useState(false);
   const [datosCargados, setDatosCargados] = useState(false);
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
@@ -48,16 +56,17 @@ export default function SubtekDashboard() {
   useEffect(() => {
     setIsClient(true);
     try {
-      // Usamos las mismas llaves para no perder datos históricos
       const saved = localStorage.getItem('subtek-data-v6');
       if (saved && saved !== '[]') setHipotesis(JSON.parse(saved));
       const savedPpto = localStorage.getItem('subtek-ppto-v6');
       if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
-      
       const savedMes = localStorage.getItem('subtek-ppto-mes-v6');
       if (savedMes) setMesPpto(savedMes);
       const savedAnio = localStorage.getItem('subtek-ppto-anio-v6');
       if (savedAnio) setAnioPpto(Number(savedAnio));
+      
+      const savedRoadmap = localStorage.getItem('subtek-roadmap-v6');
+      if (savedRoadmap) setRoadmap(JSON.parse(savedRoadmap));
     } catch (e) { console.error("Error lectura local:", e); }
     
     setDatosCargados(true);
@@ -71,8 +80,9 @@ export default function SubtekDashboard() {
       localStorage.setItem('subtek-ppto-v6', presupuestoTotalSubtek.toString());
       localStorage.setItem('subtek-ppto-mes-v6', mesPpto);
       localStorage.setItem('subtek-ppto-anio-v6', anioPpto.toString());
+      localStorage.setItem('subtek-roadmap-v6', JSON.stringify(roadmap));
     }
-  }, [hipotesis, presupuestoTotalSubtek, mesPpto, anioPpto, isClient, datosCargados]);
+  }, [hipotesis, presupuestoTotalSubtek, mesPpto, anioPpto, roadmap, isClient, datosCargados]);
 
   // 3. FUNCIONES DE LECTURA Y ESCRITURA EN NUBE
   const cargarDatosNube = async () => {
@@ -95,21 +105,24 @@ export default function SubtekDashboard() {
         const { error: errorHip } = await supabase.from('hipotesis').upsert(hipotesis);
         if (errorHip) throw new Error("Error en proyectos: " + errorHip.message);
       }
-      
       const { error: errorPpto } = await supabase.from('presupuesto_global').upsert({ id: 1, total: presupuestoTotalSubtek });
       if (errorPpto) throw new Error("Error en presupuesto: " + errorPpto.message);
 
       setHayCambiosLocales(false);
       alert("¡Sincronización exitosa! Los datos están seguros en la nube de Subtek.");
     } catch (error: any) {
-      console.error("Fallo la sincronización:", error);
       alert("ATENCIÓN: No se pudo guardar en la nube.\nMotivo: " + (error.message || "Error desconocido"));
     } finally {
       setIsSyncing(false);
     }
   };
 
-  // 4. FUNCIONES DE MODIFICACIÓN
+  // 4. FUNCIONES DE MODIFICACIÓN Y ROADMAP
+  const toggleRoadmap = (id: string) => {
+    setRoadmap(prev => ({ ...prev, [id]: !prev[id] }));
+    setHayCambiosLocales(true);
+  };
+
   const guardarPresupuestoTotal = async (valor: number) => {
     setPresupuestoTotalSubtek(valor);
     setHayCambiosLocales(true);
@@ -182,6 +195,25 @@ export default function SubtekDashboard() {
     document.body.appendChild(link); link.click(); link.remove();
   };
 
+  // COMPONENTE VISUAL PARA EL ROADMAP
+  const RoadmapCard = ({ id, title, icon: Icon, state }: { id: string, title: string, icon: any, state: boolean }) => (
+    <div
+      onClick={() => toggleRoadmap(id)}
+      className={`cursor-pointer relative overflow-hidden p-4 rounded-xl border-2 transition-all duration-500 flex flex-col items-center text-center w-40 h-36 justify-center z-20 group
+        ${state
+          ? 'bg-gradient-to-br from-[#1a0f2e] to-slate-900 border-subtek-cyan shadow-[0_0_25px_rgba(0,240,255,0.4)] transform hover:-translate-y-2 scale-105'
+          : 'bg-slate-900/50 border-slate-700/50 opacity-60 hover:opacity-100 hover:border-slate-500 transform hover:-translate-y-1'}`}
+    >
+      {state && (
+        <div className="absolute top-2 right-2">
+          <CheckCircle2 size={18} className="text-subtek-cyan drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]" />
+        </div>
+      )}
+      <Icon size={36} className={`mb-3 transition-colors duration-500 ${state ? 'text-subtek-cyan' : 'text-slate-600 group-hover:text-slate-400'}`} />
+      <span className={`text-xs font-bold leading-tight ${state ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>{title}</span>
+    </div>
+  );
+
   if (!isClient) return <div className="p-8 text-white">Cargando plataforma SUBTEK...</div>;
 
   const hipotesisFiltradas = (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema') ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
@@ -214,22 +246,15 @@ export default function SubtekDashboard() {
             <div className="flex flex-col"><span className="text-xl font-black tracking-widest text-white">SUBTEK</span><span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span></div>
           </div>
           <div className="flex items-center gap-4">
-            
-            <button 
-              onClick={forzarGuardadoNube} 
-              disabled={isSyncing}
-              className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}
-            >
-              <CloudUpload size={20} /> 
-              {isSyncing ? 'Guardando...' : hayCambiosLocales ? '¡Guardar en Servidor!' : 'Nube Sincronizada'}
+            <button onClick={forzarGuardadoNube} disabled={isSyncing} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
+              <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : hayCambiosLocales ? '¡Guardar en Servidor!' : 'Nube Sincronizada'}
             </button>
-
             <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan hover:bg-subtek-cyan hover:text-black text-subtek-cyan px-4 py-2 rounded transition-all duration-300 hover:scale-105 font-medium shadow-[0_0_10px_rgba(0,240,255,0.1)]"><Download size={18} /> Exportar (BI)</button>
           </div>
         </div>
       </header>
 
-      {/* MASCOTA SUBI - MENSAJE ORIGINAL Y MOTIVACIONAL */}
+      {/* MASCOTA SUBI */}
       <div className="bg-gradient-to-r from-subtek-blue to-[#1a0f2e] border-b border-subtek-cyan/20 p-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
@@ -253,55 +278,56 @@ export default function SubtekDashboard() {
         </div>
 
         {/* ========================================= */}
-        {/* NUEVA SECCIÓN: ROADMAP ECOSISTEMA SUBTEK  */}
+        {/* NUEVA SECCIÓN: ROADMAP ECOSISTEMA (PIRÁMIDE) */}
         {/* ========================================= */}
         {gerenciaActiva === 'Roadmap Ecosistema' && (
-          <div className="mb-12 animate-fade-in">
-            <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3 mb-6">Mapa de Ruta - Ecosistema Subtek</h2>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              
-              {/* FASE 1: PRODUCCIÓN (BRILLANTE) */}
-              <div className="bg-[#1a0f2e] border border-subtek-cyan rounded-xl p-6 shadow-[0_0_20px_rgba(0,240,255,0.3)] transform hover:scale-105 transition-all duration-500 relative overflow-hidden">
-                 <div className="absolute top-0 right-0 bg-subtek-cyan text-black text-[10px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest">Activo</div>
-                 <h4 className="text-subtek-cyan font-black text-xl mb-4 flex items-center gap-2">
-                   FASE 1: OPERACIÓN
-                   <span className="relative flex h-3 w-3">
-                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-subtek-cyan opacity-75"></span>
-                     <span className="relative inline-flex rounded-full h-3 w-3 bg-subtek-cyan"></span>
-                   </span>
-                 </h4>
-                 <p className="text-xs text-slate-400 mb-4 border-b border-subtek-cyan/20 pb-3">Servicios de base e infraestructura física.</p>
-                 <ul className="text-slate-200 space-y-4 font-medium">
-                    <li className="flex items-start gap-3"><CheckSquare size={18} className="text-subtek-cyan shrink-0 mt-0.5"/> <span>Venta de equipos CCTV</span></li>
-                    <li className="flex items-start gap-3"><CheckSquare size={18} className="text-subtek-cyan shrink-0 mt-0.5"/> <span>Limpieza Vactor</span></li>
-                    <li className="flex items-start gap-3"><CheckSquare size={18} className="text-subtek-cyan shrink-0 mt-0.5"/> <span>Inspección CCTV</span></li>
-                 </ul>
-              </div>
+          <div className="mb-12 animate-fade-in flex flex-col items-center">
+            
+            <div className="w-full mb-8 text-center">
+               <h2 className="text-3xl font-black text-white mb-2">Roadmap Tecnológico <span className="text-subtek-cyan">SUBTEK</span></h2>
+               <p className="text-slate-400 text-sm max-w-2xl mx-auto">La evolución de nuestro ecosistema desde la infraestructura operativa hasta la Inteligencia Predictiva. Haz clic en cada bloque para marcarlo como productivo y encender el "Flywheel" de datos.</p>
+            </div>
 
-              {/* FASE 2: DESARROLLO (GRIS CLARO) */}
-              <div className="bg-slate-800 border border-slate-600 rounded-xl p-6 opacity-90 transition-all duration-500 hover:border-slate-400 relative">
-                 <div className="absolute top-0 right-0 bg-slate-600 text-slate-300 text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">En Desarrollo</div>
-                 <h4 className="text-slate-300 font-bold text-xl mb-4">FASE 2: TECNOLOGÍA B2B</h4>
-                 <p className="text-xs text-slate-500 mb-4 border-b border-slate-700 pb-3">Digitalización y captura del foso de datos.</p>
-                 <ul className="text-slate-400 space-y-4">
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Plataforma SaaS Unificada</span></li>
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Software Etiquetador (PACP/NS-058)</span></li>
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Modelo de Recomendaciones</span></li>
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Visión Computacional (Etiquetado Asistido)</span></li>
-                 </ul>
-              </div>
+            <div className="flex flex-col items-center w-full max-w-4xl bg-[#0a0514] border border-slate-800 p-8 md:p-12 rounded-2xl shadow-2xl relative overflow-hidden">
+               {/* Resplandor de fondo estilo Sci-Fi */}
+               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-subtek-cyan/5 rounded-full blur-[100px] pointer-events-none"></div>
 
-              {/* FASE 3: FUTURO (GRIS OSCURO / SOMBRÍO) */}
-              <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 opacity-60 transition-all duration-500 hover:opacity-80 relative">
-                 <div className="absolute top-0 right-0 bg-slate-800 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">Visión Futura</div>
-                 <h4 className="text-slate-500 font-bold text-xl mb-4">FASE 3: INTELIGENCIA (IA)</h4>
-                 <p className="text-xs text-slate-600 mb-4 border-b border-slate-800 pb-3">Predicción y automatización a gran escala.</p>
-                 <ul className="text-slate-600 space-y-4">
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-700 mt-1.5 shrink-0"></span> <span>Modelo Predictivo (Ciclo de Vida Tuberías)</span></li>
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-700 mt-1.5 shrink-0"></span> <span>Visión Computacional en Tiempo Real</span></li>
-                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-700 mt-1.5 shrink-0"></span> <span>Modelos de Inversión MACP</span></li>
-                 </ul>
-              </div>
+               {/* TIER 3: CÚSPIDE (FUTURO) */}
+               <div className="flex flex-col items-center w-full z-10">
+                  <span className="bg-slate-800/80 text-slate-400 text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-slate-700">Fase 3: Cúspide de Inteligencia</span>
+                  <div className="flex flex-wrap justify-center gap-4 w-full md:w-3/4">
+                     <RoadmapCard id="fase3_predictivo" title="Modelo Predictivo Ciclo de Vida" icon={TrendingUp} state={roadmap.fase3_predictivo} />
+                     <RoadmapCard id="fase3_vision_rt" title="Visión Computacional en Tiempo Real" icon={Zap} state={roadmap.fase3_vision_rt} />
+                     <RoadmapCard id="fase3_macp" title="Modelos de Inversión MACP" icon={PieChart} state={roadmap.fase3_macp} />
+                  </div>
+               </div>
+
+               {/* CONECTOR VERTICAL */}
+               <div className="w-0.5 h-12 bg-gradient-to-b from-slate-700 to-subtek-cyan/40 my-2 z-10"></div>
+
+               {/* TIER 2: MEDIO (DESARROLLO SAAS) */}
+               <div className="flex flex-col items-center w-full z-10">
+                  <span className="bg-subtek-cyan/10 text-subtek-cyan text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-subtek-cyan/30">Fase 2: Foso de Datos & SaaS</span>
+                  <div className="flex flex-wrap justify-center gap-4 w-full">
+                     <RoadmapCard id="fase2_saas" title="Plataforma SaaS Agnóstica" icon={Cloud} state={roadmap.fase2_saas} />
+                     <RoadmapCard id="fase2_etiquetador" title="Etiquetador NASSCO" icon={Tag} state={roadmap.fase2_etiquetador} />
+                     <RoadmapCard id="fase2_recomendaciones" title="Modelo de Recomendaciones" icon={Cpu} state={roadmap.fase2_recomendaciones} />
+                     <RoadmapCard id="fase2_vision" title="Visión Computacional" icon={Eye} state={roadmap.fase2_vision} />
+                  </div>
+               </div>
+
+               {/* CONECTOR VERTICAL */}
+               <div className="w-0.5 h-12 bg-gradient-to-b from-subtek-cyan/40 to-subtek-cyan my-2 z-10 shadow-[0_0_10px_rgba(0,240,255,0.8)]"></div>
+
+               {/* TIER 1: BASE (OPERATIVO) */}
+               <div className="flex flex-col items-center w-full z-10">
+                  <span className="bg-subtek-cyan text-black text-[11px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest mb-6 shadow-[0_0_15px_rgba(0,240,255,0.6)]">Fase 1: Base Operativa Activa</span>
+                  <div className="flex flex-wrap justify-center gap-4 w-full md:w-3/4">
+                     <RoadmapCard id="fase1_cctv" title="Venta de Equipos CCTV" icon={Camera} state={roadmap.fase1_cctv} />
+                     <RoadmapCard id="fase1_vactor" title="Limpieza Vactor" icon={Droplets} state={roadmap.fase1_vactor} />
+                     <RoadmapCard id="fase1_inspeccion" title="Inspección CCTV" icon={Video} state={roadmap.fase1_inspeccion} />
+                  </div>
+               </div>
 
             </div>
           </div>
@@ -319,58 +345,41 @@ export default function SubtekDashboard() {
           </div>
         )}
 
-        {/* ========================================= */}
-        {/* VISTA DASHBOARD GLOBAL (CON CONTROL FINANCIERO) */}
-        {/* ========================================= */}
+        {/* VISTA DASHBOARD GLOBAL CON EDICIÓN DE PRESUPUESTO */}
         {gerenciaActiva === 'Dashboard Global' && (
           <>
-            {/* PANEL DE CONFIGURACIÓN Y CONGELAMIENTO DE PRESUPUESTO */}
             <div className="mb-8 bg-subtek-card p-5 rounded-xl border border-subtek-cyan/50 flex flex-col items-start shadow-[0_0_15px_rgba(0,240,255,0.1)]">
               <span className="text-slate-400 text-xs font-bold mb-4 uppercase tracking-widest flex items-center gap-2"><Info size={14}/> Configuración Financiera Global</span>
-              
               <div className="flex flex-wrap items-end gap-4 w-full">
                   <div className="flex flex-col gap-1 w-full md:w-auto">
                     <label className="text-xs text-subtek-cyan font-bold uppercase">Mes Operativo</label>
-                    <select 
-                      className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan h-[42px]"
-                      value={mesPpto} onChange={(e) => { setMesPpto(e.target.value); setHayCambiosLocales(true); }}
-                    >
+                    <select className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan h-[42px]" value={mesPpto} onChange={(e) => { setMesPpto(e.target.value); setHayCambiosLocales(true); }}>
                       {MESES.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
-                  
                   <div className="flex flex-col gap-1 w-full md:w-auto">
                     <label className="text-xs text-subtek-cyan font-bold uppercase">Año</label>
-                    <input 
-                      type="number" 
-                      className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan w-24 h-[42px]" 
-                      value={anioPpto} onChange={(e) => { setAnioPpto(Number(e.target.value)); setHayCambiosLocales(true); }}
-                    />
+                    <input type="number" className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan w-24 h-[42px]" value={anioPpto} onChange={(e) => { setAnioPpto(Number(e.target.value)); setHayCambiosLocales(true); }} />
                   </div>
-
                   <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
                     <label className="text-xs text-subtek-cyan font-bold uppercase">Fondo Total Disponible (Subtek) ($)</label>
-                    <input 
-                      type="number" 
-                      placeholder="Ej: 50000" 
-                      className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan text-white text-lg font-bold w-full h-[42px]" 
-                      value={presupuestoTotalSubtek || ''} 
-                      onChange={(e) => { guardarPresupuestoTotal(Number(e.target.value)); setHayCambiosLocales(true); }} 
-                    />
+                    <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan text-white text-lg font-bold w-full h-[42px]" value={presupuestoTotalSubtek || ''} onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} />
                   </div>
-
-                  <button 
-                    onClick={congelarPresupuestoMensual}
-                    className="bg-subtek-cyan text-black font-black px-6 py-2 rounded h-[42px] hover:scale-105 transition-all shadow-[0_0_10px_rgba(0,240,255,0.3)] whitespace-nowrap"
-                  >
+                  <button onClick={congelarPresupuestoMensual} className="bg-subtek-cyan text-black font-black px-6 py-2 rounded h-[42px] hover:scale-105 transition-all shadow-[0_0_10px_rgba(0,240,255,0.3)] whitespace-nowrap">
                     Congelar Ppto
                   </button>
               </div>
               <p className="text-[10px] text-slate-500 mt-3">* Al congelar el presupuesto, fijas este valor como la meta financiera del periodo. Recuerda subir los cambios a la nube con el botón superior.</p>
             </div>
 
-            {/* TARJETAS DE INDICADORES GLOBALES */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
+                <span className="text-subtek-cyan text-sm font-bold mb-1 uppercase tracking-widest">Fondo Total Disponible ({mesPpto} {anioPpto})</span>
+                <div className="flex items-center justify-center gap-2">
+                   <span className="text-4xl font-black text-white">$</span>
+                   <input type="number" className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 w-64 transition-colors cursor-not-allowed opacity-90" value={presupuestoTotalSubtek || ''} disabled={true} />
+                </div>
+              </div>
               <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span><span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span></div>
               <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Quemado (Finalizadas)</span><span className="text-2xl font-black text-red-400">${finalizadasGastado.toLocaleString()}</span></div>
               <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"><span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span><span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>${presupuestoDisponible.toLocaleString()}</span></div>
