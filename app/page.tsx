@@ -5,7 +5,7 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
   AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map,
-  Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2
+  Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2, ArrowDown
 } from 'lucide-react';
 
 // ==========================================
@@ -195,22 +195,25 @@ export default function SubtekDashboard() {
     document.body.appendChild(link); link.click(); link.remove();
   };
 
-  // COMPONENTE VISUAL PARA EL ROADMAP
-  const RoadmapCard = ({ id, title, icon: Icon, state }: { id: string, title: string, icon: any, state: boolean }) => (
+  // COMPONENTE VISUAL PREMIUM PARA EL ROADMAP B2B
+  const RoadmapCard = ({ id, title, subtitle, icon: Icon, state }: { id: string, title: string, subtitle: string, icon: any, state: boolean }) => (
     <div
       onClick={() => toggleRoadmap(id)}
-      className={`cursor-pointer relative overflow-hidden p-4 rounded-xl border-2 transition-all duration-500 flex flex-col items-center text-center w-40 h-36 justify-center z-20 group
+      className={`cursor-pointer relative overflow-hidden p-5 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center text-center w-56 h-40 justify-center z-20 group
         ${state
-          ? 'bg-gradient-to-br from-[#1a0f2e] to-slate-900 border-subtek-cyan shadow-[0_0_25px_rgba(0,240,255,0.4)] transform hover:-translate-y-2 scale-105'
-          : 'bg-slate-900/50 border-slate-700/50 opacity-60 hover:opacity-100 hover:border-slate-500 transform hover:-translate-y-1'}`}
+          ? 'bg-gradient-to-br from-[#1a0f2e] to-[#0a0514] border-subtek-cyan shadow-[0_0_30px_rgba(0,240,255,0.25)] transform hover:-translate-y-2 scale-105'
+          : 'bg-slate-900/40 border-slate-700/50 opacity-60 hover:opacity-100 hover:border-slate-500 hover:bg-slate-800/80 transform hover:-translate-y-1'}`}
     >
       {state && (
-        <div className="absolute top-2 right-2">
-          <CheckCircle2 size={18} className="text-subtek-cyan drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]" />
+        <div className="absolute top-3 right-3 animate-pulse">
+          <CheckCircle2 size={20} className="text-subtek-cyan drop-shadow-[0_0_8px_rgba(0,240,255,0.9)]" />
         </div>
       )}
-      <Icon size={36} className={`mb-3 transition-colors duration-500 ${state ? 'text-subtek-cyan' : 'text-slate-600 group-hover:text-slate-400'}`} />
-      <span className={`text-xs font-bold leading-tight ${state ? 'text-white' : 'text-slate-500 group-hover:text-slate-300'}`}>{title}</span>
+      <div className={`p-3 rounded-full mb-3 transition-colors duration-500 ${state ? 'bg-subtek-cyan/10' : 'bg-slate-800 group-hover:bg-slate-700'}`}>
+        <Icon size={32} className={`${state ? 'text-subtek-cyan drop-shadow-[0_0_5px_rgba(0,240,255,0.6)]' : 'text-slate-500 group-hover:text-slate-300'}`} />
+      </div>
+      <h3 className={`text-sm font-black leading-tight mb-1 ${state ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>{title}</h3>
+      <span className={`text-[10px] font-semibold uppercase tracking-wider ${state ? 'text-subtek-cyan' : 'text-slate-600 group-hover:text-slate-400'}`}>{subtitle}</span>
     </div>
   );
 
@@ -277,55 +280,67 @@ export default function SubtekDashboard() {
           ))}
         </div>
 
-        {/* ========================================= */}
-        {/* NUEVA SECCIÓN: ROADMAP ECOSISTEMA (PIRÁMIDE) */}
-        {/* ========================================= */}
+        {/* ========================================================================= */}
+        {/* NUEVA SECCIÓN: ROADMAP ECOSISTEMA B2B (TOP-DOWN WATERFALL / EMBUDO DE DATOS) */}
+        {/* ========================================================================= */}
         {gerenciaActiva === 'Roadmap Ecosistema' && (
-          <div className="mb-12 animate-fade-in flex flex-col items-center">
+          <div className="mb-16 animate-fade-in flex flex-col items-center">
             
-            <div className="w-full mb-8 text-center">
-               <h2 className="text-3xl font-black text-white mb-2">Roadmap Tecnológico <span className="text-subtek-cyan">SUBTEK</span></h2>
-               <p className="text-slate-400 text-sm max-w-2xl mx-auto">La evolución de nuestro ecosistema desde la infraestructura operativa hasta la Inteligencia Predictiva. Haz clic en cada bloque para marcarlo como productivo y encender el "Flywheel" de datos.</p>
+            <div className="w-full mb-10 text-center">
+               <h2 className="text-4xl font-black text-white mb-3">Roadmap Tecnológico <span className="text-subtek-cyan drop-shadow-[0_0_10px_rgba(0,240,255,0.5)]">SUBTEK</span></h2>
+               <p className="text-slate-400 text-base max-w-3xl mx-auto">Nuestro pipeline estratégico: El flujo inicia capturando datos en campo, se procesa en nuestro ecosistema digital B2B y culmina en la inteligencia artificial predictiva. Haz clic para activar cada módulo productivo.</p>
             </div>
 
-            <div className="flex flex-col items-center w-full max-w-4xl bg-[#0a0514] border border-slate-800 p-8 md:p-12 rounded-2xl shadow-2xl relative overflow-hidden">
+            <div className="flex flex-col items-center w-full max-w-5xl bg-[#0a0514] border border-slate-800 p-10 md:p-14 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
                {/* Resplandor de fondo estilo Sci-Fi */}
-               <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-subtek-cyan/5 rounded-full blur-[100px] pointer-events-none"></div>
+               <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-subtek-cyan/5 rounded-full blur-[120px] pointer-events-none"></div>
 
-               {/* TIER 3: CÚSPIDE (FUTURO) */}
+               {/* ================= TIER 1: BASE OPERATIVA (ARRIBA) ================= */}
                <div className="flex flex-col items-center w-full z-10">
-                  <span className="bg-slate-800/80 text-slate-400 text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-slate-700">Fase 3: Cúspide de Inteligencia</span>
-                  <div className="flex flex-wrap justify-center gap-4 w-full md:w-3/4">
-                     <RoadmapCard id="fase3_predictivo" title="Modelo Predictivo Ciclo de Vida" icon={TrendingUp} state={roadmap.fase3_predictivo} />
-                     <RoadmapCard id="fase3_vision_rt" title="Visión Computacional en Tiempo Real" icon={Zap} state={roadmap.fase3_vision_rt} />
-                     <RoadmapCard id="fase3_macp" title="Modelos de Inversión MACP" icon={PieChart} state={roadmap.fase3_macp} />
+                  <div className="bg-subtek-cyan text-black text-sm font-black px-8 py-2 rounded-full uppercase tracking-widest mb-8 shadow-[0_0_20px_rgba(0,240,255,0.6)] flex items-center gap-2 border-2 border-white/20">
+                     Fase 1: Base Operativa y Captura de Datos
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-6 w-full">
+                     <RoadmapCard id="fase1_cctv" title="Venta de Equipos CCTV" subtitle="Representación Comercial" icon={Camera} state={roadmap.fase1_cctv} />
+                     <RoadmapCard id="fase1_vactor" title="Limpieza Vactor" subtitle="Intermediación Logística" icon={Droplets} state={roadmap.fase1_vactor} />
+                     <RoadmapCard id="fase1_inspeccion" title="Inspección CCTV" subtitle="Certificación NASSCO" icon={Video} state={roadmap.fase1_inspeccion} />
                   </div>
                </div>
 
-               {/* CONECTOR VERTICAL */}
-               <div className="w-0.5 h-12 bg-gradient-to-b from-slate-700 to-subtek-cyan/40 my-2 z-10"></div>
+               {/* CONECTOR DOWNWARD */}
+               <div className="flex flex-col items-center my-4 z-10 opacity-70">
+                  <div className="w-1 h-12 bg-gradient-to-b from-subtek-cyan to-blue-500 rounded-full"></div>
+                  <ArrowDown size={24} className="text-blue-500 -mt-2 animate-bounce" />
+               </div>
 
-               {/* TIER 2: MEDIO (DESARROLLO SAAS) */}
+               {/* ================= TIER 2: DESARROLLO B2B / SAAS (MEDIO) ================= */}
                <div className="flex flex-col items-center w-full z-10">
-                  <span className="bg-subtek-cyan/10 text-subtek-cyan text-[10px] font-bold px-4 py-1.5 rounded-full uppercase tracking-widest mb-6 border border-subtek-cyan/30">Fase 2: Foso de Datos & SaaS</span>
-                  <div className="flex flex-wrap justify-center gap-4 w-full">
-                     <RoadmapCard id="fase2_saas" title="Plataforma SaaS Agnóstica" icon={Cloud} state={roadmap.fase2_saas} />
-                     <RoadmapCard id="fase2_etiquetador" title="Etiquetador NASSCO" icon={Tag} state={roadmap.fase2_etiquetador} />
-                     <RoadmapCard id="fase2_recomendaciones" title="Modelo de Recomendaciones" icon={Cpu} state={roadmap.fase2_recomendaciones} />
-                     <RoadmapCard id="fase2_vision" title="Visión Computacional" icon={Eye} state={roadmap.fase2_vision} />
+                  <div className="bg-blue-900/40 text-blue-400 text-sm font-bold px-8 py-2 rounded-full uppercase tracking-widest mb-8 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] flex items-center gap-2">
+                     Fase 2: Ecosistema Digital B2B
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-6 w-full">
+                     <RoadmapCard id="fase2_saas" title="Subtek Core OS™" subtitle="Plataforma SaaS Unificada" icon={Cloud} state={roadmap.fase2_saas} />
+                     <RoadmapCard id="fase2_etiquetador" title="Subtek Tag Studio™" subtitle="Etiquetador NASSCO" icon={Tag} state={roadmap.fase2_etiquetador} />
+                     <RoadmapCard id="fase2_vision" title="AutoScan AI™" subtitle="Visión Computacional" icon={Eye} state={roadmap.fase2_vision} />
+                     <RoadmapCard id="fase2_recomendaciones" title="Prescripta™" subtitle="Modelo de Recomendaciones" icon={Cpu} state={roadmap.fase2_recomendaciones} />
                   </div>
                </div>
 
-               {/* CONECTOR VERTICAL */}
-               <div className="w-0.5 h-12 bg-gradient-to-b from-subtek-cyan/40 to-subtek-cyan my-2 z-10 shadow-[0_0_10px_rgba(0,240,255,0.8)]"></div>
+               {/* CONECTOR DOWNWARD */}
+               <div className="flex flex-col items-center my-4 z-10 opacity-50">
+                  <div className="w-1 h-12 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></div>
+                  <ArrowDown size={24} className="text-purple-500 -mt-2 animate-bounce" />
+               </div>
 
-               {/* TIER 1: BASE (OPERATIVO) */}
+               {/* ================= TIER 3: CÚSPIDE DE INTELIGENCIA (ABAJO) ================= */}
                <div className="flex flex-col items-center w-full z-10">
-                  <span className="bg-subtek-cyan text-black text-[11px] font-black px-5 py-1.5 rounded-full uppercase tracking-widest mb-6 shadow-[0_0_15px_rgba(0,240,255,0.6)]">Fase 1: Base Operativa Activa</span>
-                  <div className="flex flex-wrap justify-center gap-4 w-full md:w-3/4">
-                     <RoadmapCard id="fase1_cctv" title="Venta de Equipos CCTV" icon={Camera} state={roadmap.fase1_cctv} />
-                     <RoadmapCard id="fase1_vactor" title="Limpieza Vactor" icon={Droplets} state={roadmap.fase1_vactor} />
-                     <RoadmapCard id="fase1_inspeccion" title="Inspección CCTV" icon={Video} state={roadmap.fase1_inspeccion} />
+                  <div className="bg-purple-900/30 text-purple-400 text-sm font-bold px-8 py-2 rounded-full uppercase tracking-widest mb-8 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)] flex items-center gap-2">
+                     Fase 3: Inteligencia Artificial Predictiva
+                  </div>
+                  <div className="flex flex-wrap justify-center gap-6 w-full md:w-4/5">
+                     <RoadmapCard id="fase3_predictivo" title="Predictivo de Vida" subtitle="Deterioro de Tuberías" icon={TrendingUp} state={roadmap.fase3_predictivo} />
+                     <RoadmapCard id="fase3_vision_rt" title="Visión IA en Tiempo Real" subtitle="Inferencia en Streaming" icon={Zap} state={roadmap.fase3_vision_rt} />
+                     <RoadmapCard id="fase3_macp" title="Modelos de Inversión MACP" subtitle="Priorización de Capital" icon={PieChart} state={roadmap.fase3_macp} />
                   </div>
                </div>
 
