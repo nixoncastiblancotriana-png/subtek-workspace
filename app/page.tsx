@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
-  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload
+  AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map
 } from 'lucide-react';
 
 // ==========================================
@@ -15,7 +15,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_rxf7CQsMHtXx-Ndo1RpE5A_52kMOtb3';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-type Gerencia = 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos';
+type Gerencia = 'Roadmap Ecosistema' | 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos';
 type Estatus = 'Sin iniciar' | 'En curso' | 'Finalizado';
 type Veredicto = 'Pendiente' | 'Validada' | 'Refutada';
 
@@ -27,12 +27,15 @@ interface Hipotesis {
   avance: number; estatus: Estatus; veredicto: Veredicto; observaciones: string; evidencia: string; subtareas: Subtarea[];
 }
 
-const GERENCIAS: Gerencia[] = ['Dashboard Global', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
+const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
 const RESPONSABLES = ['Nixon Castiblanco', 'Edwin Escalante', 'Daniel Arevalo', 'Lis Gordillo'];
+const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
 export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
   const [presupuestoTotalSubtek, setPresupuestoTotalSubtek] = useState<number>(0);
+  const [mesPpto, setMesPpto] = useState<string>('Septiembre');
+  const [anioPpto, setAnioPpto] = useState<number>(2026);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   
   const [isClient, setIsClient] = useState(false);
@@ -45,10 +48,16 @@ export default function SubtekDashboard() {
   useEffect(() => {
     setIsClient(true);
     try {
+      // Usamos las mismas llaves para no perder datos históricos
       const saved = localStorage.getItem('subtek-data-v6');
       if (saved && saved !== '[]') setHipotesis(JSON.parse(saved));
       const savedPpto = localStorage.getItem('subtek-ppto-v6');
       if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
+      
+      const savedMes = localStorage.getItem('subtek-ppto-mes-v6');
+      if (savedMes) setMesPpto(savedMes);
+      const savedAnio = localStorage.getItem('subtek-ppto-anio-v6');
+      if (savedAnio) setAnioPpto(Number(savedAnio));
     } catch (e) { console.error("Error lectura local:", e); }
     
     setDatosCargados(true);
@@ -60,8 +69,10 @@ export default function SubtekDashboard() {
     if (isClient && datosCargados) {
       localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
       localStorage.setItem('subtek-ppto-v6', presupuestoTotalSubtek.toString());
+      localStorage.setItem('subtek-ppto-mes-v6', mesPpto);
+      localStorage.setItem('subtek-ppto-anio-v6', anioPpto.toString());
     }
-  }, [hipotesis, presupuestoTotalSubtek, isClient, datosCargados]);
+  }, [hipotesis, presupuestoTotalSubtek, mesPpto, anioPpto, isClient, datosCargados]);
 
   // 3. FUNCIONES DE LECTURA Y ESCRITURA EN NUBE
   const cargarDatosNube = async () => {
@@ -72,8 +83,8 @@ export default function SubtekDashboard() {
       
       const { data: pptoData, error: errorPpto } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
       if (!errorPpto && pptoData) setPresupuestoTotalSubtek(pptoData.total);
-    } catch (error) { 
-      console.error("Error al cargar de la nube"); 
+    } catch (error: any) { 
+      console.error("Error al cargar de la nube:", error.message); 
     }
   };
 
@@ -90,8 +101,9 @@ export default function SubtekDashboard() {
 
       setHayCambiosLocales(false);
       alert("¡Sincronización exitosa! Los datos están seguros en la nube de Subtek.");
-    } catch (error) {
-      alert("ATENCIÓN: No se pudo guardar en la nube.");
+    } catch (error: any) {
+      console.error("Fallo la sincronización:", error);
+      alert("ATENCIÓN: No se pudo guardar en la nube.\nMotivo: " + (error.message || "Error desconocido"));
     } finally {
       setIsSyncing(false);
     }
@@ -103,18 +115,23 @@ export default function SubtekDashboard() {
     setHayCambiosLocales(true);
   };
 
+  const congelarPresupuestoMensual = () => {
+    setHayCambiosLocales(true);
+    alert(`✅ Presupuesto de ${mesPpto} ${anioPpto} congelado y fijado en $${presupuestoTotalSubtek.toLocaleString()}.\n\nNo olvides hacer clic en "¡Guardar en Servidor!" arriba para subir este cambio a la nube.`);
+  };
+
   const agregarHipotesis = () => {
     const nueva: Hipotesis = {
-      id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' ? 'Gerencia General' : gerenciaActiva,
+      id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema' ? 'Gerencia General' : gerenciaActiva,
       nombre: '', responsable: '', presupuestoAsignado: 0, presupuestoGastado: 0,
       fechaInicio: new Date().toISOString().split('T')[0], fechaLimite: '', avance: 0, estatus: 'Sin iniciar', veredicto: 'Pendiente', observaciones: '', evidencia: '', subtareas: []
     };
     setHipotesis([nueva, ...hipotesis]);
     setHayCambiosLocales(true);
-    if (gerenciaActiva === 'Dashboard Global') setGerenciaActiva('Gerencia General');
+    if (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema') setGerenciaActiva('Gerencia General');
   };
 
-  const actualizarHipotesis = (id: string, campo: string, valor: any) => {
+  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
     setHipotesis(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h));
     setHayCambiosLocales(true);
   };
@@ -138,7 +155,7 @@ export default function SubtekDashboard() {
   const confirmarBorrado = async () => {
     if (modalBorrar) {
       setHipotesis(prev => prev.filter(h => h.id !== modalBorrar));
-      try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){}
+      try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){ console.error(e); }
       setModalBorrar(null);
       setHayCambiosLocales(true);
     }
@@ -146,7 +163,7 @@ export default function SubtekDashboard() {
 
   const exportarCSV = () => {
     const headers = ['ID', 'Gerencia', 'Nombre_Proyecto', 'Responsable', 'Fecha_Inicio', 'Fecha_Limite', 'P_Asignado', 'P_Gastado', 'Avance_Porcentaje', 'Estatus', 'Veredicto', 'Evidencia_URL', 'Observaciones', 'Subtarea_Texto', 'Subtarea_Estado'];
-    const rows = [];
+    const rows: any[][] = [];
     hipotesis.forEach(h => {
       const obsLimpia = h.observaciones?.replace(/\n/g, " ").replace(/"/g, "'") || "";
       const evLimpia = h.evidencia ? `"${h.evidencia}"` : "";
@@ -167,7 +184,7 @@ export default function SubtekDashboard() {
 
   if (!isClient) return <div className="p-8 text-white">Cargando plataforma SUBTEK...</div>;
 
-  const hipotesisFiltradas = gerenciaActiva === 'Dashboard Global' ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
+  const hipotesisFiltradas = (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema') ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
   const activasAsignado = hipotesis.filter(h => h.estatus !== 'Finalizado').reduce((acc, curr) => acc + (curr.presupuestoAsignado || 0), 0);
   const finalizadasGastado = hipotesis.filter(h => h.estatus === 'Finalizado').reduce((acc, curr) => acc + (curr.presupuestoGastado || 0), 0);
   const presupuestoDisponible = presupuestoTotalSubtek - activasAsignado - finalizadasGastado;
@@ -212,7 +229,7 @@ export default function SubtekDashboard() {
         </div>
       </header>
 
-      {/* MASCOTA SUBI - MENSAJE RESTAURADO Y MOTIVACIONAL */}
+      {/* MASCOTA SUBI - MENSAJE ORIGINAL Y MOTIVACIONAL */}
       <div className="bg-gradient-to-r from-subtek-blue to-[#1a0f2e] border-b border-subtek-cyan/20 p-4">
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           <img src="/subi.jpg" alt="Subi" className="w-16 h-16 rounded-full border-2 border-subtek-cyan object-cover shadow-[0_0_15px_rgba(0,240,255,0.4)] hover:scale-110 transition-all duration-300" onError={(e) => e.currentTarget.style.display = 'none'} />
@@ -228,134 +245,232 @@ export default function SubtekDashboard() {
         <div className="flex flex-wrap gap-2 mb-8 border-b border-slate-700 pb-2">
           {GERENCIAS.map(g => (
             <button key={g} onClick={() => setGerenciaActiva(g)} className={`px-4 py-2 rounded-t-lg font-medium transition-all duration-300 flex items-center gap-2 ${gerenciaActiva === g ? 'bg-subtek-cyan text-black shadow-[0_-4px_15px_rgba(0,240,255,0.3)] transform -translate-y-1' : 'bg-subtek-card text-slate-400 hover:text-white hover:bg-slate-700'}`}>
-              {g === 'Dashboard Global' && <BarChart3 size={16} />}{g}
+              {g === 'Dashboard Global' && <BarChart3 size={16} />}
+              {g === 'Roadmap Ecosistema' && <Map size={16} />}
+              {g}
             </button>
           ))}
         </div>
 
-        {/* WORKSPACE HEADER */}
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">
-            {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° y Flujo de Caja' : `Workspace: ${gerenciaActiva}`}
-          </h2>
-          {gerenciaActiva !== 'Dashboard Global' && (
-            <button onClick={agregarHipotesis} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all duration-300 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,240,255,0.5)]"><Plus size={20} /> Nuevo Proyecto</button>
-          )}
-        </div>
-
-        {/* VISTA DASHBOARD GLOBAL (EDICIÓN LIBERADA PARA PRESUPUESTO) */}
-        {gerenciaActiva === 'Dashboard Global' && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg col-span-2 md:col-span-4 bg-gradient-to-r from-subtek-blue to-[#1a0f2e]">
-              <span className="text-subtek-cyan text-sm font-bold mb-2 uppercase tracking-widest">Fondo Total Disponible (Subtek)</span>
-              <div className="flex items-center justify-center gap-2">
-                 <span className="text-4xl font-black text-white">$</span>
-                 <input 
-                   type="number" 
-                   placeholder="Ingrese Ppto Total" 
-                   className="bg-transparent text-4xl font-black text-white outline-none text-center border-b border-slate-600 focus:border-subtek-cyan w-64 transition-colors" 
-                   value={presupuestoTotalSubtek || ''} 
-                   onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} 
-                 />
+        {/* ========================================= */}
+        {/* NUEVA SECCIÓN: ROADMAP ECOSISTEMA SUBTEK  */}
+        {/* ========================================= */}
+        {gerenciaActiva === 'Roadmap Ecosistema' && (
+          <div className="mb-12 animate-fade-in">
+            <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3 mb-6">Mapa de Ruta - Ecosistema Subtek</h2>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              
+              {/* FASE 1: PRODUCCIÓN (BRILLANTE) */}
+              <div className="bg-[#1a0f2e] border border-subtek-cyan rounded-xl p-6 shadow-[0_0_20px_rgba(0,240,255,0.3)] transform hover:scale-105 transition-all duration-500 relative overflow-hidden">
+                 <div className="absolute top-0 right-0 bg-subtek-cyan text-black text-[10px] font-black px-3 py-1 rounded-bl-lg uppercase tracking-widest">Activo</div>
+                 <h4 className="text-subtek-cyan font-black text-xl mb-4 flex items-center gap-2">
+                   FASE 1: OPERACIÓN
+                   <span className="relative flex h-3 w-3">
+                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-subtek-cyan opacity-75"></span>
+                     <span className="relative inline-flex rounded-full h-3 w-3 bg-subtek-cyan"></span>
+                   </span>
+                 </h4>
+                 <p className="text-xs text-slate-400 mb-4 border-b border-subtek-cyan/20 pb-3">Servicios de base e infraestructura física.</p>
+                 <ul className="text-slate-200 space-y-4 font-medium">
+                    <li className="flex items-start gap-3"><CheckSquare size={18} className="text-subtek-cyan shrink-0 mt-0.5"/> <span>Venta de equipos CCTV</span></li>
+                    <li className="flex items-start gap-3"><CheckSquare size={18} className="text-subtek-cyan shrink-0 mt-0.5"/> <span>Limpieza Vactor</span></li>
+                    <li className="flex items-start gap-3"><CheckSquare size={18} className="text-subtek-cyan shrink-0 mt-0.5"/> <span>Inspección CCTV</span></li>
+                 </ul>
               </div>
+
+              {/* FASE 2: DESARROLLO (GRIS CLARO) */}
+              <div className="bg-slate-800 border border-slate-600 rounded-xl p-6 opacity-90 transition-all duration-500 hover:border-slate-400 relative">
+                 <div className="absolute top-0 right-0 bg-slate-600 text-slate-300 text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">En Desarrollo</div>
+                 <h4 className="text-slate-300 font-bold text-xl mb-4">FASE 2: TECNOLOGÍA B2B</h4>
+                 <p className="text-xs text-slate-500 mb-4 border-b border-slate-700 pb-3">Digitalización y captura del foso de datos.</p>
+                 <ul className="text-slate-400 space-y-4">
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Plataforma SaaS Unificada</span></li>
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Software Etiquetador (PACP/NS-058)</span></li>
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Modelo de Recomendaciones</span></li>
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-500 mt-1.5 shrink-0"></span> <span>Visión Computacional (Etiquetado Asistido)</span></li>
+                 </ul>
+              </div>
+
+              {/* FASE 3: FUTURO (GRIS OSCURO / SOMBRÍO) */}
+              <div className="bg-slate-950 border border-slate-800 rounded-xl p-6 opacity-60 transition-all duration-500 hover:opacity-80 relative">
+                 <div className="absolute top-0 right-0 bg-slate-800 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-lg uppercase tracking-widest">Visión Futura</div>
+                 <h4 className="text-slate-500 font-bold text-xl mb-4">FASE 3: INTELIGENCIA (IA)</h4>
+                 <p className="text-xs text-slate-600 mb-4 border-b border-slate-800 pb-3">Predicción y automatización a gran escala.</p>
+                 <ul className="text-slate-600 space-y-4">
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-700 mt-1.5 shrink-0"></span> <span>Modelo Predictivo (Ciclo de Vida Tuberías)</span></li>
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-700 mt-1.5 shrink-0"></span> <span>Visión Computacional en Tiempo Real</span></li>
+                    <li className="flex items-start gap-3"><span className="h-2 w-2 rounded-full bg-slate-700 mt-1.5 shrink-0"></span> <span>Modelos de Inversión MACP</span></li>
+                 </ul>
+              </div>
+
             </div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span><span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span></div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Quemado (Finalizadas)</span><span className="text-2xl font-black text-red-400">${finalizadasGastado.toLocaleString()}</span></div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"><span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span><span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>${presupuestoDisponible.toLocaleString()}</span></div>
-            <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">Proyectos / Validados</span><span className="text-2xl font-black text-white">{hipotesis.length} / <span className="text-green-400">{validadas}</span></span></div>
           </div>
         )}
 
-        {/* GRID DE TARJETAS DE PROYECTO */}
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 pb-20">
-          {hipotesisFiltradas.length === 0 ? (
-            <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto".</p></div>
-          ) : (
-            hipotesisFiltradas.map((hip) => {
-              const presupuestoValido = hip.presupuestoAsignado > 0;
-              const burnRate = presupuestoValido ? (hip.presupuestoGastado / hip.presupuestoAsignado) * 100 : 0;
-              let semaforoColor = 'bg-subtek-card border-slate-700';
-              let alertaActiva = false;
-              const isGlobal = gerenciaActiva === 'Dashboard Global';
+        {/* WORKSPACE HEADER (Oculto en Roadmap) */}
+        {gerenciaActiva !== 'Roadmap Ecosistema' && (
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">
+              {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° y Flujo de Caja' : `Workspace: ${gerenciaActiva}`}
+            </h2>
+            {gerenciaActiva !== 'Dashboard Global' && (
+              <button onClick={agregarHipotesis} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all duration-300 hover:scale-105 hover:shadow-[0_0_15px_rgba(0,240,255,0.5)]"><Plus size={20} /> Nuevo Proyecto</button>
+            )}
+          </div>
+        )}
+
+        {/* ========================================= */}
+        {/* VISTA DASHBOARD GLOBAL (CON CONTROL FINANCIERO) */}
+        {/* ========================================= */}
+        {gerenciaActiva === 'Dashboard Global' && (
+          <>
+            {/* PANEL DE CONFIGURACIÓN Y CONGELAMIENTO DE PRESUPUESTO */}
+            <div className="mb-8 bg-subtek-card p-5 rounded-xl border border-subtek-cyan/50 flex flex-col items-start shadow-[0_0_15px_rgba(0,240,255,0.1)]">
+              <span className="text-slate-400 text-xs font-bold mb-4 uppercase tracking-widest flex items-center gap-2"><Info size={14}/> Configuración Financiera Global</span>
               
-              if (presupuestoValido) {
-                 if (burnRate > 80 && hip.avance < 50) { semaforoColor = 'bg-red-950/30 border-red-500/50'; alertaActiva = true;
-                 } else if (burnRate > 90) { semaforoColor = 'bg-orange-950/30 border-orange-500/50'; }
-              }
-              if (hip.estatus === 'Finalizado' && hip.veredicto === 'Validada') semaforoColor = 'bg-green-950/20 border-green-500/40';
-              if (hip.estatus === 'Finalizado' && hip.veredicto === 'Refutada') semaforoColor = 'bg-slate-900 border-slate-600 opacity-70';
-
-              return (
-                <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-5 shadow-xl transition-all duration-500 hover:shadow-2xl relative overflow-hidden ${isGlobal ? 'opacity-90' : ''}`}>
-                  <div className="flex justify-between gap-4 items-start">
-                    <div className="w-full">
-                      {isGlobal && <span className="text-[10px] bg-subtek-cyan text-black font-bold px-2 py-0.5 rounded mb-2 inline-block uppercase tracking-wider">{hip.gerencia}</span>}
-                      <input type="text" placeholder="Ej: Piloto de IA..." className={`bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)} disabled={isGlobal} />
-                    </div>
-                    {!isGlobal && <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300"><Trash2 size={20} /></button>}
+              <div className="flex flex-wrap items-end gap-4 w-full">
+                  <div className="flex flex-col gap-1 w-full md:w-auto">
+                    <label className="text-xs text-subtek-cyan font-bold uppercase">Mes Operativo</label>
+                    <select 
+                      className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan h-[42px]"
+                      value={mesPpto} onChange={(e) => { setMesPpto(e.target.value); setHayCambiosLocales(true); }}
+                    >
+                      {MESES.map(m => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1 w-full md:w-auto">
+                    <label className="text-xs text-subtek-cyan font-bold uppercase">Año</label>
+                    <input 
+                      type="number" 
+                      className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan w-24 h-[42px]" 
+                      value={anioPpto} onChange={(e) => { setAnioPpto(Number(e.target.value)); setHayCambiosLocales(true); }}
+                    />
                   </div>
 
-                  {alertaActiva && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 p-3 rounded border border-red-900 animate-pulse"><AlertTriangle size={16} /> ¡Peligro! Alto consumo de capital frente a bajo avance.</div>}
-
-                  {/* BLOQUE SUPERIOR */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label>
-                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}>
-                        <option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option>
-                      </select>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label>
-                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
-                        <option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option>
-                      </select>
-                    </div>
-                    <div className="flex flex-col gap-1">
-                      <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
-                      <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}>
-                        <option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
-                      </select>
-                    </div>
+                  <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
+                    <label className="text-xs text-subtek-cyan font-bold uppercase">Fondo Total Disponible (Subtek) ($)</label>
+                    <input 
+                      type="number" 
+                      placeholder="Ej: 50000" 
+                      className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan text-white text-lg font-bold w-full h-[42px]" 
+                      value={presupuestoTotalSubtek || ''} 
+                      onChange={(e) => { guardarPresupuestoTotal(Number(e.target.value)); setHayCambiosLocales(true); }} 
+                    />
                   </div>
 
-                  {/* BLOQUE MEDIO */}
-                  <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Inicio</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaInicio} onChange={(e) => actualizarHipotesis(hip.id, 'fechaInicio', e.target.value)} disabled={isGlobal} /></div>
-                    <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Límite</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaLimite} onChange={(e) => actualizarHipotesis(hip.id, 'fechaLimite', e.target.value)} disabled={isGlobal} /></div>
-                    <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">P. Asignado ($)</label><input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-lg text-white ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoAsignado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} disabled={isGlobal} /></div>
-                    <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">P. Gastado ($)</label><input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-red-400 transition-colors w-full text-lg text-red-400 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoGastado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} disabled={isGlobal} /></div>
-                    <div className="col-span-2 flex flex-col gap-2 pt-2 border-t border-slate-800">
-                      <div className="flex justify-between items-center text-xs"><label className="text-slate-400 uppercase font-bold flex items-center gap-1"><TrendingUp size={14}/> Progreso</label><span className="text-subtek-cyan font-black text-lg">{hip.avance}%</span></div>
-                      <input type="range" min="0" max="100" className={`w-full accent-subtek-cyan ${isGlobal ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`} value={hip.avance} onChange={(e) => actualizarHipotesis(hip.id, 'avance', Number(e.target.value))} disabled={isGlobal} />
-                    </div>
-                  </div>
+                  <button 
+                    onClick={congelarPresupuestoMensual}
+                    className="bg-subtek-cyan text-black font-black px-6 py-2 rounded h-[42px] hover:scale-105 transition-all shadow-[0_0_10px_rgba(0,240,255,0.3)] whitespace-nowrap"
+                  >
+                    Congelar Ppto
+                  </button>
+              </div>
+              <p className="text-[10px] text-slate-500 mt-3">* Al congelar el presupuesto, fijas este valor como la meta financiera del periodo. Recuerda subir los cambios a la nube con el botón superior.</p>
+            </div>
 
-                  {/* BLOQUE INFERIOR */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-2">
-                       <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas</label>
-                       <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col gap-2 h-44 overflow-y-auto">
-                          {(hip.subtareas || []).map(sub => (
-                            <div key={sub.id} className="flex items-start gap-2 group">
-                              <input type="checkbox" checked={sub.completada} onChange={() => toggleSubtarea(hip.id, sub.id)} className={`mt-1 accent-subtek-cyan ${isGlobal ? 'cursor-not-allowed' : 'cursor-pointer'}`} disabled={isGlobal} />
-                              <span className={`text-sm flex-1 ${sub.completada ? 'line-through text-slate-500' : 'text-slate-200'}`}>{sub.texto}</span>
-                              {!isGlobal && <button onClick={() => borrarSubtarea(hip.id, sub.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
-                            </div>
-                          ))}
-                          {!isGlobal && <input type="text" placeholder="+ Escribir y Enter..." className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1" onKeyDown={(e) => { if (e.key === 'Enter') { agregarSubtarea(hip.id, e.currentTarget.value); e.currentTarget.value = ''; } }} />}
-                       </div>
+            {/* TARJETAS DE INDICADORES GLOBALES */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+              <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Reservado (Activas)</span><span className="text-2xl font-black text-blue-400">${activasAsignado.toLocaleString()}</span></div>
+              <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">P. Quemado (Finalizadas)</span><span className="text-2xl font-black text-red-400">${finalizadasGastado.toLocaleString()}</span></div>
+              <div className="bg-subtek-card p-4 rounded-xl border border-subtek-cyan/50 flex flex-col items-center justify-center text-center shadow-[0_0_15px_rgba(0,240,255,0.2)]"><span className="text-subtek-cyan text-sm font-bold mb-1">Caja Estimada Restante</span><span className={`text-3xl font-black ${presupuestoDisponible < 0 ? 'text-red-500' : 'text-green-400'}`}>${presupuestoDisponible.toLocaleString()}</span></div>
+              <div className="bg-subtek-card p-4 rounded-xl border border-slate-700 flex flex-col items-center justify-center text-center shadow-lg"><span className="text-slate-400 text-sm font-bold mb-1">Proyectos / Validados</span><span className="text-2xl font-black text-white">{hipotesis.length} / <span className="text-green-400">{validadas}</span></span></div>
+            </div>
+          </>
+        )}
+
+        {/* GRID DE TARJETAS DE PROYECTO (SE OCULTA EN EL ROADMAP) */}
+        {gerenciaActiva !== 'Roadmap Ecosistema' && (
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 pb-20">
+            {hipotesisFiltradas.length === 0 ? (
+              <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto".</p></div>
+            ) : (
+              hipotesisFiltradas.map((hip) => {
+                const presupuestoValido = hip.presupuestoAsignado > 0;
+                const burnRate = presupuestoValido ? (hip.presupuestoGastado / hip.presupuestoAsignado) * 100 : 0;
+                let semaforoColor = 'bg-subtek-card border-slate-700';
+                let alertaActiva = false;
+                const isGlobal = gerenciaActiva === 'Dashboard Global';
+                
+                if (presupuestoValido) {
+                   if (burnRate > 80 && hip.avance < 50) { semaforoColor = 'bg-red-950/30 border-red-500/50'; alertaActiva = true;
+                   } else if (burnRate > 90) { semaforoColor = 'bg-orange-950/30 border-orange-500/50'; }
+                }
+                if (hip.estatus === 'Finalizado' && hip.veredicto === 'Validada') semaforoColor = 'bg-green-950/20 border-green-500/40';
+                if (hip.estatus === 'Finalizado' && hip.veredicto === 'Refutada') semaforoColor = 'bg-slate-900 border-slate-600 opacity-70';
+
+                return (
+                  <div key={hip.id} className={`p-6 rounded-xl border ${semaforoColor} flex flex-col gap-5 shadow-xl transition-all duration-500 hover:shadow-2xl relative overflow-hidden ${isGlobal ? 'opacity-90' : ''}`}>
+                    <div className="flex justify-between gap-4 items-start">
+                      <div className="w-full">
+                        {isGlobal && <span className="text-[10px] bg-subtek-cyan text-black font-bold px-2 py-0.5 rounded mb-2 inline-block uppercase tracking-wider">{hip.gerencia}</span>}
+                        <input type="text" placeholder="Ej: Piloto de IA..." className={`bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-xl font-bold placeholder-slate-600 pb-1 transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.nombre} onChange={(e) => actualizarHipotesis(hip.id, 'nombre', e.target.value)} disabled={isGlobal} />
+                      </div>
+                      {!isGlobal && <button onClick={() => setModalBorrar(hip.id)} className="text-slate-500 hover:text-red-400 p-2 rounded hover:bg-slate-800 transition-all duration-300"><Trash2 size={20} /></button>}
                     </div>
-                    <div className="flex flex-col gap-3">
-                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Info size={14}/> Observaciones</label><textarea placeholder="Anota aquí lecciones..." className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.observaciones || ''} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)} disabled={isGlobal} /></div>
-                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><LinkIcon size={14}/> Evidencia (URL)</label><input type="url" placeholder="https://drive.google.com/..." className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.evidencia || ''} onChange={(e) => actualizarHipotesis(hip.id, 'evidencia', e.target.value)} disabled={isGlobal} /></div>
+
+                    {alertaActiva && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 p-3 rounded border border-red-900 animate-pulse"><AlertTriangle size={16} /> ¡Peligro! Alto consumo de capital frente a bajo avance.</div>}
+
+                    {/* BLOQUE SUPERIOR */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label>
+                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}>
+                          <option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label>
+                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
+                          <option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option>
+                        </select>
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
+                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}>
+                          <option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* BLOQUE MEDIO */}
+                    <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Inicio</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaInicio} onChange={(e) => actualizarHipotesis(hip.id, 'fechaInicio', e.target.value)} disabled={isGlobal} /></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Límite</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaLimite} onChange={(e) => actualizarHipotesis(hip.id, 'fechaLimite', e.target.value)} disabled={isGlobal} /></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">P. Asignado ($)</label><input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-lg text-white ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoAsignado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoAsignado', Number(e.target.value))} disabled={isGlobal} /></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">P. Gastado ($)</label><input type="number" placeholder="0" className={`bg-transparent border-b border-slate-700 outline-none focus:border-red-400 transition-colors w-full text-lg text-red-400 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.presupuestoGastado || ''} onChange={(e) => actualizarHipotesis(hip.id, 'presupuestoGastado', Number(e.target.value))} disabled={isGlobal} /></div>
+                      <div className="col-span-2 flex flex-col gap-2 pt-2 border-t border-slate-800">
+                        <div className="flex justify-between items-center text-xs"><label className="text-slate-400 uppercase font-bold flex items-center gap-1"><TrendingUp size={14}/> Progreso</label><span className="text-subtek-cyan font-black text-lg">{hip.avance}%</span></div>
+                        <input type="range" min="0" max="100" className={`w-full accent-subtek-cyan ${isGlobal ? 'cursor-not-allowed opacity-80' : 'cursor-pointer'}`} value={hip.avance} onChange={(e) => actualizarHipotesis(hip.id, 'avance', Number(e.target.value))} disabled={isGlobal} />
+                      </div>
+                    </div>
+
+                    {/* BLOQUE INFERIOR */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="flex flex-col gap-2">
+                         <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas</label>
+                         <div className="bg-slate-800 border border-slate-700 rounded-lg p-2 flex flex-col gap-2 h-44 overflow-y-auto">
+                            {(hip.subtareas || []).map(sub => (
+                              <div key={sub.id} className="flex items-start gap-2 group">
+                                <input type="checkbox" checked={sub.completada} onChange={() => toggleSubtarea(hip.id, sub.id)} className={`mt-1 accent-subtek-cyan ${isGlobal ? 'cursor-not-allowed' : 'cursor-pointer'}`} disabled={isGlobal} />
+                                <span className={`text-sm flex-1 ${sub.completada ? 'line-through text-slate-500' : 'text-slate-200'}`}>{sub.texto}</span>
+                                {!isGlobal && <button onClick={() => borrarSubtarea(hip.id, sub.id)} className="text-slate-600 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity"><X size={14}/></button>}
+                              </div>
+                            ))}
+                            {!isGlobal && <input type="text" placeholder="+ Escribir y Enter..." className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none text-sm text-subtek-cyan placeholder-slate-600 w-full mt-auto py-1" onKeyDown={(e) => { if (e.key === 'Enter') { agregarSubtarea(hip.id, e.currentTarget.value); e.currentTarget.value = ''; } }} />}
+                         </div>
+                      </div>
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Info size={14}/> Observaciones</label><textarea placeholder="Anota aquí lecciones..." className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan h-24 resize-none text-slate-300 w-full leading-relaxed ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.observaciones || ''} onChange={(e) => actualizarHipotesis(hip.id, 'observaciones', e.target.value)} disabled={isGlobal} /></div>
+                        <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><LinkIcon size={14}/> Evidencia (URL)</label><input type="url" placeholder="https://drive.google.com/..." className={`bg-slate-800 border border-slate-700 rounded-lg p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full text-subtek-cyan placeholder-slate-600 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.evidencia || ''} onChange={(e) => actualizarHipotesis(hip.id, 'evidencia', e.target.value)} disabled={isGlobal} /></div>
+                      </div>
                     </div>
                   </div>
-                </div>
-              );
-            })
-          )}
-        </div>
+                );
+              })
+            )}
+          </div>
+        )}
       </main>
     </div>
   );
