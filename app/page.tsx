@@ -6,7 +6,7 @@ import {
   Download, Plus, Trash2, Users, Link as LinkIcon,
   AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map,
   Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2, ArrowDown,
-  Building, Phone, Mail, Target, Award
+  Building, Phone, Mail, Target, Award, AlertOctagon, Send, Clock, UserPlus
 } from 'lucide-react';
 
 // ==========================================
@@ -32,29 +32,14 @@ interface Hipotesis {
 interface ClienteSubtek {
   id: string; empresa: string; nombreContacto: string; telefono: string; correo: string;
   esCliente: boolean; estado: string; estadoActual: string; proximoPaso: string; origen: string;
-  referidoPor?: string; // NUEVO CAMPO ESTRATÉGICO
+  referidoPor?: string;
 }
 
 const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Clientes Subtek', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
 const RESPONSABLES = ['Nixon Castiblanco', 'Edwin Escalante', 'Daniel Arevalo', 'Lis Gordillo'];
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
-const ESTADOS_CLIENTE = [
-  "Prospecto o contacto inicial", 
-  "Cotización enviada", 
-  "Pendiente respuesta", 
-  "Cliente activo o con interacción reciente", 
-  "Oportunidad detenida o sin respuesta por mas de 2 semanas"
-];
-
-const ORIGEN_CLIENTE = [
-  "Página web", 
-  "Referido", 
-  "Redes sociales", 
-  "Evento empresarial", 
-  "Soporte tecnico Welltep", 
-  "Otro"
-];
+const ORIGEN_CLIENTE = ["Página web", "Referido", "Redes sociales", "Evento empresarial", "Soporte tecnico Welltep", "Otro"];
 
 export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
@@ -149,7 +134,7 @@ export default function SubtekDashboard() {
     }
   };
 
-  // 4. FUNCIONES DE MODIFICACIÓN - CLIENTES
+  // 4. FUNCIONES CRM
   const agregarCliente = () => {
     const nuevo: ClienteSubtek = {
       id: Math.random().toString(36).substr(2, 9), empresa: '', nombreContacto: '', telefono: '', correo: '',
@@ -170,6 +155,62 @@ export default function SubtekDashboard() {
       try { await supabase.from('clientes').delete().eq('id', modalBorrarCliente); } catch(e){}
       setModalBorrarCliente(null);
       setHayCambiosLocales(true);
+    }
+  };
+
+  // ==========================================
+  // 🎨 MOTOR VISUAL DE SEMÁFORO COMERCIAL B2B
+  // ==========================================
+  const getStateStyle = (estado: string) => {
+    switch(estado) {
+      case "Cliente activo o con interacción reciente":
+        return {
+          select: "bg-green-950/60 text-green-400 border-green-500 shadow-[0_0_15px_rgba(34,197,94,0.4)]",
+          card: "bg-green-950/10 border-green-500/50 hover:border-green-400 shadow-[0_0_20px_rgba(34,197,94,0.15)]",
+          dot: "bg-green-400 shadow-[0_0_10px_rgba(34,197,94,0.9)]",
+          icon: Award,
+          iconColor: "text-green-400"
+        };
+      case "Cotización enviada":
+        return {
+          select: "bg-blue-950/60 text-blue-400 border-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.4)]",
+          card: "bg-blue-950/10 border-blue-500/50 hover:border-blue-400 shadow-[0_0_20px_rgba(59,130,246,0.15)]",
+          dot: "bg-blue-400 shadow-[0_0_10px_rgba(59,130,246,0.9)]",
+          icon: Send,
+          iconColor: "text-blue-400"
+        };
+      case "Pendiente respuesta":
+        return {
+          select: "bg-yellow-950/60 text-yellow-400 border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.4)]",
+          card: "bg-yellow-950/10 border-yellow-500/50 hover:border-yellow-400 shadow-[0_0_20px_rgba(234,179,8,0.15)]",
+          dot: "bg-yellow-400 shadow-[0_0_10px_rgba(234,179,8,0.9)]",
+          icon: Clock,
+          iconColor: "text-yellow-400"
+        };
+      case "Prospecto o contacto inicial":
+        return {
+          select: "bg-orange-950/60 text-orange-400 border-orange-500 shadow-[0_0_15px_rgba(249,115,22,0.4)]",
+          card: "bg-orange-950/10 border-orange-500/50 hover:border-orange-400 shadow-[0_0_20px_rgba(249,115,22,0.15)]",
+          dot: "bg-orange-400 shadow-[0_0_10px_rgba(249,115,22,0.9)]",
+          icon: UserPlus,
+          iconColor: "text-orange-400"
+        };
+      case "Oportunidad detenida o sin respuesta por mas de 2 semanas":
+        return {
+          select: "bg-red-950/60 text-red-400 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.4)]",
+          card: "bg-red-950/10 border-red-500/50 hover:border-red-400 shadow-[0_0_20px_rgba(239,68,68,0.15)]",
+          dot: "bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.9)]",
+          icon: AlertOctagon,
+          iconColor: "text-red-400"
+        };
+      default:
+        return {
+          select: "bg-slate-800 text-white border-slate-700",
+          card: "bg-subtek-card border-slate-700 hover:border-slate-500",
+          dot: "bg-slate-500",
+          icon: Target,
+          iconColor: "text-slate-400"
+        };
     }
   };
 
@@ -205,7 +246,7 @@ export default function SubtekDashboard() {
     document.body.appendChild(link); link.click(); link.remove();
   };
 
-  // RESTO DE FUNCIONES
+  // RESTO DE FUNCIONES (Hipótesis, Presupuesto, etc.)
   const toggleRoadmap = (id: string) => { setRoadmap(prev => ({ ...prev, [id]: !prev[id] })); setHayCambiosLocales(true); };
   const guardarPresupuestoTotal = async (valor: number) => { setPresupuestoTotalSubtek(valor); setHayCambiosLocales(true); };
   const congelarPresupuestoMensual = () => { setHayCambiosLocales(true); alert(`✅ Presupuesto de ${mesPpto} ${anioPpto} congelado en $${presupuestoTotalSubtek.toLocaleString()}.\n\nNo olvides hacer clic en "¡Guardar en Servidor!".`); };
@@ -341,27 +382,13 @@ export default function SubtekDashboard() {
                 {clientes.map((cli) => {
                   
                   // LÓGICA DE SEMÁFORO COMERCIAL B2B
-                  let semaforoCliente = 'bg-subtek-card border-slate-700 hover:border-slate-500';
-                  let indicadorPunto = 'bg-slate-500';
-
-                  if (cli.estado === 'Cliente activo o con interacción reciente') {
-                    semaforoCliente = 'bg-green-950/20 border-green-500/40 hover:border-green-400 shadow-[0_0_15px_rgba(34,197,94,0.1)]';
-                    indicadorPunto = 'bg-green-400 shadow-[0_0_8px_rgba(34,197,94,0.8)]';
-                  } else if (cli.estado === 'Cotización enviada' || cli.estado === 'Pendiente respuesta') {
-                    semaforoCliente = 'bg-orange-950/20 border-orange-500/40 hover:border-orange-400 shadow-[0_0_15px_rgba(249,115,22,0.1)]';
-                    indicadorPunto = 'bg-orange-400 shadow-[0_0_8px_rgba(249,115,22,0.8)]';
-                  } else if (cli.estado === 'Prospecto o contacto inicial') {
-                    semaforoCliente = 'bg-subtek-card border-subtek-cyan/40 hover:border-subtek-cyan shadow-[0_0_15px_rgba(0,240,255,0.1)]';
-                    indicadorPunto = 'bg-subtek-cyan shadow-[0_0_8px_rgba(0,240,255,0.8)]';
-                  } else if (cli.estado === 'Oportunidad detenida o sin respuesta por mas de 2 semanas') {
-                    semaforoCliente = 'bg-red-950/10 border-red-500/30 hover:border-red-500/50 opacity-80';
-                    indicadorPunto = 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]';
-                  }
+                  const styleConfig = getStateStyle(cli.estado);
+                  const StateIcon = styleConfig.icon;
 
                   return (
-                  <div key={cli.id} className={`border rounded-xl p-5 flex flex-col md:flex-row gap-6 relative transition-all duration-300 ${semaforoCliente}`}>
+                  <div key={cli.id} className={`border rounded-xl p-5 flex flex-col md:flex-row gap-6 relative transition-all duration-500 ${styleConfig.card}`}>
                     
-                    <button onClick={() => setModalBorrarCliente(cli.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                    <button onClick={() => setModalBorrarCliente(cli.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors z-20"><Trash2 size={18} /></button>
                     
                     {/* Columna Izquierda: Identificación */}
                     <div className="flex-1 space-y-4 border-b md:border-b-0 md:border-r border-slate-700/50 pb-4 md:pb-0 md:pr-6">
@@ -389,14 +416,31 @@ export default function SubtekDashboard() {
                     <div className="flex-[1.5] grid grid-cols-1 md:grid-cols-2 gap-4">
                       
                       <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
+                        {/* CUSTOM DROPDOWN: SEMÁFORO COMERCIAL */}
+                        <div className="flex flex-col gap-1 relative">
                           <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1">
                             <Target size={12}/> Estado Comercial
-                            <span className={`w-2 h-2 rounded-full ml-2 animate-pulse ${indicadorPunto}`}></span>
+                            <span className={`w-2 h-2 rounded-full ml-2 animate-pulse ${styleConfig.dot}`}></span>
                           </label>
-                          <select className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.estado} onChange={(e) => actualizarCliente(cli.id, 'estado', e.target.value)}>
-                            {ESTADOS_CLIENTE.map(est => <option key={est} value={est}>{est}</option>)}
-                          </select>
+                          <div className="relative group">
+                            <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                               <StateIcon size={16} className={styleConfig.iconColor} />
+                            </div>
+                            <select 
+                              className={`w-full pl-10 pr-8 py-2 text-sm font-bold rounded-lg border-2 outline-none cursor-pointer appearance-none transition-all duration-300 hover:scale-[1.02] ${styleConfig.select}`} 
+                              value={cli.estado} 
+                              onChange={(e) => actualizarCliente(cli.id, 'estado', e.target.value)}
+                            >
+                              <option value="Cliente activo o con interacción reciente" className="bg-slate-900 text-green-400 font-bold">🟢 Cliente Activo / En Curso</option>
+                              <option value="Cotización enviada" className="bg-slate-900 text-blue-400 font-bold">🔵 Cotización Enviada</option>
+                              <option value="Pendiente respuesta" className="bg-slate-900 text-yellow-400 font-bold">🟡 Pendiente Respuesta</option>
+                              <option value="Prospecto o contacto inicial" className="bg-slate-900 text-orange-400 font-bold">🟠 Prospecto Inicial</option>
+                              <option value="Oportunidad detenida o sin respuesta por mas de 2 semanas" className="bg-slate-900 text-red-400 font-bold">🔴 Detenida / Sin Respuesta</option>
+                            </select>
+                            <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none z-10">
+                               <ArrowDown size={16} className={styleConfig.iconColor} />
+                            </div>
+                          </div>
                         </div>
                         
                         <div className="flex flex-col gap-1">
@@ -405,11 +449,11 @@ export default function SubtekDashboard() {
                             {ORIGEN_CLIENTE.map(or => <option key={or} value={or}>{or}</option>)}
                           </select>
                           
-                          {/* CAMPO CONDICIONAL: REFERIDO POR */}
+                          {/* CAMPO CONDICIONAL: REFERIDO POR (Ultra-visible) */}
                           {cli.origen === 'Referido' && (
-                            <div className="flex flex-col gap-1 mt-2 animate-fade-in">
-                              <label className="text-[10px] text-subtek-cyan font-bold uppercase tracking-wider flex items-center gap-1">¿Quién lo refirió?</label>
-                              <input type="text" placeholder="Ej: Ing. Carlos (Consorcio X)..." className="bg-slate-900 border border-subtek-cyan/50 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full shadow-[0_0_10px_rgba(0,240,255,0.1)]" value={cli.referidoPor || ''} onChange={(e) => actualizarCliente(cli.id, 'referidoPor', e.target.value)} />
+                            <div className="flex flex-col gap-1 mt-3 p-3 bg-subtek-cyan/10 border border-subtek-cyan/50 rounded-lg animate-fade-in shadow-[0_0_15px_rgba(0,240,255,0.1)]">
+                              <label className="text-[10px] text-subtek-cyan font-black uppercase tracking-widest flex items-center gap-1">🤝 ¿Quién lo refirió?</label>
+                              <input type="text" placeholder="Ej: Ing. Carlos (Consorcio X)..." className="bg-slate-900 border-b-2 border-subtek-cyan focus:border-white rounded-none px-2 py-1 text-sm outline-none text-white w-full transition-colors" value={cli.referidoPor || ''} onChange={(e) => actualizarCliente(cli.id, 'referidoPor', e.target.value)} />
                             </div>
                           )}
                         </div>
@@ -455,9 +499,7 @@ export default function SubtekDashboard() {
                  {/* Gráfico de Torta en SVG Puro */}
                  <div className="relative w-48 h-48 flex items-center justify-center">
                     <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                      {/* Fondo (Leads) */}
                       <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#334155" strokeWidth="6" />
-                      {/* Porcentaje (Clientes) */}
                       <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#00f0ff" strokeWidth="6" 
                         strokeDasharray={`${porcentajeClientes} ${100 - porcentajeClientes}`} 
                         className="transition-all duration-1000 ease-in-out drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]"
@@ -621,29 +663,12 @@ export default function SubtekDashboard() {
 
                     {alertaActiva && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 p-3 rounded border border-red-900 animate-pulse"><AlertTriangle size={16} /> ¡Peligro! Alto consumo de capital frente a bajo avance.</div>}
 
-                    {/* BLOQUE SUPERIOR */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label>
-                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}>
-                          <option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option>
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label>
-                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
-                          <option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option>
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
-                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}>
-                          <option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      </div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label><select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}><option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option></select></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label><select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}><option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option></select></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label><select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}><option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                     </div>
 
-                    {/* BLOQUE MEDIO */}
                     <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Inicio</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaInicio} onChange={(e) => actualizarHipotesis(hip.id, 'fechaInicio', e.target.value)} disabled={isGlobal} /></div>
                       <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Límite</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaLimite} onChange={(e) => actualizarHipotesis(hip.id, 'fechaLimite', e.target.value)} disabled={isGlobal} /></div>
@@ -655,7 +680,6 @@ export default function SubtekDashboard() {
                       </div>
                     </div>
 
-                    {/* BLOQUE INFERIOR */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="flex flex-col gap-2">
                          <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas</label>
