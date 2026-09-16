@@ -5,7 +5,8 @@ import { createClient } from '@supabase/supabase-js';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
   AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map,
-  Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2, ArrowDown
+  Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2, ArrowDown,
+  Building, Phone, Mail, Target, Award
 } from 'lucide-react';
 
 // ==========================================
@@ -16,7 +17,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_rxf7CQsMHtXx-Ndo1RpE5A_52kMOtb3';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-type Gerencia = 'Roadmap Ecosistema' | 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos';
+type Gerencia = 'Roadmap Ecosistema' | 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos' | 'Clientes Subtek';
 type Estatus = 'Sin iniciar' | 'En curso' | 'Finalizado';
 type Veredicto = 'Pendiente' | 'Validada' | 'Refutada';
 
@@ -28,18 +29,40 @@ interface Hipotesis {
   avance: number; estatus: Estatus; veredicto: Veredicto; observaciones: string; evidencia: string; subtareas: Subtarea[];
 }
 
-const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
+interface ClienteSubtek {
+  id: string; empresa: string; nombreContacto: string; telefono: string; correo: string;
+  esCliente: boolean; estado: string; estadoActual: string; proximoPaso: string; origen: string;
+}
+
+const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Clientes Subtek', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
 const RESPONSABLES = ['Nixon Castiblanco', 'Edwin Escalante', 'Daniel Arevalo', 'Lis Gordillo'];
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
+const ESTADOS_CLIENTE = [
+  "Prospecto o contacto inicial", 
+  "Cotización enviada", 
+  "Pendiente respuesta", 
+  "Cliente activo o con interacción reciente", 
+  "Oportunidad detenida o sin respuesta por mas de 2 semanas"
+];
+
+const ORIGEN_CLIENTE = [
+  "Página web", 
+  "Referido", 
+  "Redes sociales", 
+  "Evento empresarial", 
+  "Soporte tecnico Welltep", 
+  "Otro"
+];
+
 export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
+  const [clientes, setClientes] = useState<ClienteSubtek[]>([]);
   const [presupuestoTotalSubtek, setPresupuestoTotalSubtek] = useState<number>(0);
   const [mesPpto, setMesPpto] = useState<string>('Septiembre');
   const [anioPpto, setAnioPpto] = useState<number>(2026);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   
-  // ESTADO DEL ROADMAP INTERACTIVO
   const [roadmap, setRoadmap] = useState({
     fase1_cctv: true, fase1_vactor: true, fase1_inspeccion: true,
     fase2_saas: false, fase2_etiquetador: false, fase2_recomendaciones: false, fase2_vision: false,
@@ -49,6 +72,7 @@ export default function SubtekDashboard() {
   const [isClient, setIsClient] = useState(false);
   const [datosCargados, setDatosCargados] = useState(false);
   const [modalBorrar, setModalBorrar] = useState<string | null>(null);
+  const [modalBorrarCliente, setModalBorrarCliente] = useState<string | null>(null);
   const [hayCambiosLocales, setHayCambiosLocales] = useState<boolean>(false);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
 
@@ -58,13 +82,15 @@ export default function SubtekDashboard() {
     try {
       const saved = localStorage.getItem('subtek-data-v6');
       if (saved && saved !== '[]') setHipotesis(JSON.parse(saved));
+      const savedClientes = localStorage.getItem('subtek-clientes-v6');
+      if (savedClientes && savedClientes !== '[]') setClientes(JSON.parse(savedClientes));
+      
       const savedPpto = localStorage.getItem('subtek-ppto-v6');
       if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
       const savedMes = localStorage.getItem('subtek-ppto-mes-v6');
       if (savedMes) setMesPpto(savedMes);
       const savedAnio = localStorage.getItem('subtek-ppto-anio-v6');
       if (savedAnio) setAnioPpto(Number(savedAnio));
-      
       const savedRoadmap = localStorage.getItem('subtek-roadmap-v6');
       if (savedRoadmap) setRoadmap(JSON.parse(savedRoadmap));
     } catch (e) { console.error("Error lectura local:", e); }
@@ -77,25 +103,26 @@ export default function SubtekDashboard() {
   useEffect(() => {
     if (isClient && datosCargados) {
       localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
+      localStorage.setItem('subtek-clientes-v6', JSON.stringify(clientes));
       localStorage.setItem('subtek-ppto-v6', presupuestoTotalSubtek.toString());
       localStorage.setItem('subtek-ppto-mes-v6', mesPpto);
       localStorage.setItem('subtek-ppto-anio-v6', anioPpto.toString());
       localStorage.setItem('subtek-roadmap-v6', JSON.stringify(roadmap));
     }
-  }, [hipotesis, presupuestoTotalSubtek, mesPpto, anioPpto, roadmap, isClient, datosCargados]);
+  }, [hipotesis, clientes, presupuestoTotalSubtek, mesPpto, anioPpto, roadmap, isClient, datosCargados]);
 
-  // 3. FUNCIONES DE LECTURA Y ESCRITURA EN NUBE
+  // 3. FUNCIONES DE NUBE
   const cargarDatosNube = async () => {
     try {
-      const { data: hipData, error: errorHip } = await supabase.from('hipotesis').select('*');
-      if (errorHip) throw errorHip;
+      const { data: hipData } = await supabase.from('hipotesis').select('*');
       if (hipData && hipData.length > 0) setHipotesis(hipData as Hipotesis[]);
       
-      const { data: pptoData, error: errorPpto } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
-      if (!errorPpto && pptoData) setPresupuestoTotalSubtek(pptoData.total);
-    } catch (error: any) { 
-      console.error("Error al cargar de la nube:", error.message); 
-    }
+      const { data: clData } = await supabase.from('clientes').select('*');
+      if (clData && clData.length > 0) setClientes(clData as ClienteSubtek[]);
+
+      const { data: pptoData } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
+      if (pptoData) setPresupuestoTotalSubtek(pptoData.total);
+    } catch (error: any) { console.error("Error nube:", error.message); }
   };
 
   const forzarGuardadoNube = async () => {
@@ -104,6 +131,10 @@ export default function SubtekDashboard() {
       if (hipotesis.length > 0) {
         const { error: errorHip } = await supabase.from('hipotesis').upsert(hipotesis);
         if (errorHip) throw new Error("Error en proyectos: " + errorHip.message);
+      }
+      if (clientes.length > 0) {
+        const { error: errorCl } = await supabase.from('clientes').upsert(clientes);
+        if (errorCl) throw new Error("Error en clientes: " + errorCl.message);
       }
       const { error: errorPpto } = await supabase.from('presupuesto_global').upsert({ id: 1, total: presupuestoTotalSubtek });
       if (errorPpto) throw new Error("Error en presupuesto: " + errorPpto.message);
@@ -117,61 +148,40 @@ export default function SubtekDashboard() {
     }
   };
 
-  // 4. FUNCIONES DE MODIFICACIÓN Y ROADMAP
-  const toggleRoadmap = (id: string) => {
-    setRoadmap(prev => ({ ...prev, [id]: !prev[id] }));
-    setHayCambiosLocales(true);
-  };
-
-  const guardarPresupuestoTotal = async (valor: number) => {
-    setPresupuestoTotalSubtek(valor);
-    setHayCambiosLocales(true);
-  };
-
-  const congelarPresupuestoMensual = () => {
-    setHayCambiosLocales(true);
-    alert(`✅ Presupuesto de ${mesPpto} ${anioPpto} congelado y fijado en $${presupuestoTotalSubtek.toLocaleString()}.\n\nNo olvides hacer clic en "¡Guardar en Servidor!" arriba para subir este cambio a la nube.`);
-  };
-
-  const agregarHipotesis = () => {
-    const nueva: Hipotesis = {
-      id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema' ? 'Gerencia General' : gerenciaActiva,
-      nombre: '', responsable: '', presupuestoAsignado: 0, presupuestoGastado: 0,
-      fechaInicio: new Date().toISOString().split('T')[0], fechaLimite: '', avance: 0, estatus: 'Sin iniciar', veredicto: 'Pendiente', observaciones: '', evidencia: '', subtareas: []
+  // 4. FUNCIONES DE MODIFICACIÓN - CLIENTES
+  const agregarCliente = () => {
+    const nuevo: ClienteSubtek = {
+      id: Math.random().toString(36).substr(2, 9), empresa: '', nombreContacto: '', telefono: '', correo: '',
+      esCliente: false, estado: 'Prospecto o contacto inicial', estadoActual: '', proximoPaso: '', origen: 'Página web'
     };
-    setHipotesis([nueva, ...hipotesis]);
-    setHayCambiosLocales(true);
-    if (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema') setGerenciaActiva('Gerencia General');
-  };
-
-  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => {
-    setHipotesis(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h));
+    setClientes([nuevo, ...clientes]);
     setHayCambiosLocales(true);
   };
 
-  const agregarSubtarea = (id: string, txt: string) => {
-    if (!txt.trim()) return;
-    setHipotesis(prev => prev.map(h => h.id === id ? { ...h, subtareas: [...(h.subtareas || []), { id: Math.random().toString(36).substr(2, 5), texto: txt, completada: false }] } : h));
+  const actualizarCliente = (id: string, campo: keyof ClienteSubtek, valor: any) => {
+    setClientes(prev => prev.map(c => c.id === id ? { ...c, [campo]: valor } : c));
     setHayCambiosLocales(true);
   };
 
-  const toggleSubtarea = (idHip: string, idSub: string) => {
-    setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.map(s => s.id === idSub ? { ...s, completada: !s.completada } : s) } : h));
-    setHayCambiosLocales(true);
-  };
-
-  const borrarSubtarea = (idHip: string, idSub: string) => {
-    setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.filter(s => s.id !== idSub) } : h));
-    setHayCambiosLocales(true);
-  };
-
-  const confirmarBorrado = async () => {
-    if (modalBorrar) {
-      setHipotesis(prev => prev.filter(h => h.id !== modalBorrar));
-      try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){ console.error(e); }
-      setModalBorrar(null);
+  const confirmarBorradoCliente = async () => {
+    if (modalBorrarCliente) {
+      setClientes(prev => prev.filter(c => c.id !== modalBorrarCliente));
+      try { await supabase.from('clientes').delete().eq('id', modalBorrarCliente); } catch(e){}
+      setModalBorrarCliente(null);
       setHayCambiosLocales(true);
     }
+  };
+
+  // 5. EXPORTACIÓN
+  const exportarClientesCSV = () => {
+    const headers = ['ID', 'Empresa', 'Contacto', 'Telefono', 'Correo', 'Es_Cliente', 'Estado', 'Estado_Actual', 'Proximo_Paso', 'Origen'];
+    const rows = clientes.map(c => [
+      c.id, `"${c.empresa}"`, `"${c.nombreContacto}"`, `"${c.telefono}"`, `"${c.correo}"`, 
+      c.esCliente ? 'SI' : 'NO', `"${c.estado}"`, `"${c.estadoActual.replace(/\n/g, " ")}"`, `"${c.proximoPaso.replace(/\n/g, " ")}"`, `"${c.origen}"`
+    ]);
+    const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `Subtek_Clientes_BI_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link); link.click(); link.remove();
   };
 
   const exportarCSV = () => {
@@ -190,52 +200,77 @@ export default function SubtekDashboard() {
       }
     });
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a"); link.setAttribute("href", encodedUri); link.setAttribute("download", `Subtek_Metricas_BI_${new Date().toISOString().split('T')[0]}.csv`);
+    const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `Subtek_Proyectos_BI_${new Date().toISOString().split('T')[0]}.csv`);
     document.body.appendChild(link); link.click(); link.remove();
   };
 
-  // COMPONENTE VISUAL PREMIUM PARA EL ROADMAP B2B
+  // RESTO DE FUNCIONES (Hipótesis, Presupuesto, etc.)
+  const toggleRoadmap = (id: string) => { setRoadmap(prev => ({ ...prev, [id]: !prev[id] })); setHayCambiosLocales(true); };
+  const guardarPresupuestoTotal = async (valor: number) => { setPresupuestoTotalSubtek(valor); setHayCambiosLocales(true); };
+  const congelarPresupuestoMensual = () => { setHayCambiosLocales(true); alert(`✅ Presupuesto de ${mesPpto} ${anioPpto} congelado en $${presupuestoTotalSubtek.toLocaleString()}.\n\nNo olvides hacer clic en "¡Guardar en Servidor!".`); };
+  
+  const agregarHipotesis = () => {
+    const nueva: Hipotesis = {
+      id: Math.random().toString(36).substr(2, 9), gerencia: gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema' ? 'Gerencia General' : gerenciaActiva,
+      nombre: '', responsable: '', presupuestoAsignado: 0, presupuestoGastado: 0, fechaInicio: new Date().toISOString().split('T')[0], fechaLimite: '', avance: 0, estatus: 'Sin iniciar', veredicto: 'Pendiente', observaciones: '', evidencia: '', subtareas: []
+    };
+    setHipotesis([nueva, ...hipotesis]); setHayCambiosLocales(true);
+    if (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema') setGerenciaActiva('Gerencia General');
+  };
+
+  const actualizarHipotesis = (id: string, campo: keyof Hipotesis, valor: any) => { setHipotesis(prev => prev.map(h => h.id === id ? { ...h, [campo]: valor } : h)); setHayCambiosLocales(true); };
+  const agregarSubtarea = (id: string, txt: string) => { if (!txt.trim()) return; setHipotesis(prev => prev.map(h => h.id === id ? { ...h, subtareas: [...(h.subtareas || []), { id: Math.random().toString(36).substr(2, 5), texto: txt, completada: false }] } : h)); setHayCambiosLocales(true); };
+  const toggleSubtarea = (idHip: string, idSub: string) => { setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.map(s => s.id === idSub ? { ...s, completada: !s.completada } : s) } : h)); setHayCambiosLocales(true); };
+  const borrarSubtarea = (idHip: string, idSub: string) => { setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.filter(s => s.id !== idSub) } : h)); setHayCambiosLocales(true); };
+  const confirmarBorrado = async () => {
+    if (modalBorrar) { setHipotesis(prev => prev.filter(h => h.id !== modalBorrar)); try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){} setModalBorrar(null); setHayCambiosLocales(true); }
+  };
+
   const RoadmapCard = ({ id, title, subtitle, icon: Icon, state }: { id: string, title: string, subtitle: string, icon: any, state: boolean }) => (
-    <div
-      onClick={() => toggleRoadmap(id)}
-      className={`cursor-pointer relative overflow-hidden p-5 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center text-center w-56 h-40 justify-center z-20 group
-        ${state
-          ? 'bg-gradient-to-br from-[#1a0f2e] to-[#0a0514] border-subtek-cyan shadow-[0_0_30px_rgba(0,240,255,0.25)] transform hover:-translate-y-2 scale-105'
-          : 'bg-slate-900/40 border-slate-700/50 opacity-60 hover:opacity-100 hover:border-slate-500 hover:bg-slate-800/80 transform hover:-translate-y-1'}`}
-    >
-      {state && (
-        <div className="absolute top-3 right-3 animate-pulse">
-          <CheckCircle2 size={20} className="text-subtek-cyan drop-shadow-[0_0_8px_rgba(0,240,255,0.9)]" />
-        </div>
-      )}
-      <div className={`p-3 rounded-full mb-3 transition-colors duration-500 ${state ? 'bg-subtek-cyan/10' : 'bg-slate-800 group-hover:bg-slate-700'}`}>
-        <Icon size={32} className={`${state ? 'text-subtek-cyan drop-shadow-[0_0_5px_rgba(0,240,255,0.6)]' : 'text-slate-500 group-hover:text-slate-300'}`} />
-      </div>
-      <h3 className={`text-sm font-black leading-tight mb-1 ${state ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>{title}</h3>
-      <span className={`text-[10px] font-semibold uppercase tracking-wider ${state ? 'text-subtek-cyan' : 'text-slate-600 group-hover:text-slate-400'}`}>{subtitle}</span>
+    <div onClick={() => toggleRoadmap(id)} className={`cursor-pointer relative overflow-hidden p-5 rounded-2xl border-2 transition-all duration-500 flex flex-col items-center text-center w-56 h-40 justify-center z-20 group ${state ? 'bg-gradient-to-br from-[#1a0f2e] to-[#0a0514] border-subtek-cyan shadow-[0_0_30px_rgba(0,240,255,0.25)] transform hover:-translate-y-2 scale-105' : 'bg-slate-900/40 border-slate-700/50 opacity-60 hover:opacity-100 hover:border-slate-500 hover:bg-slate-800/80 transform hover:-translate-y-1'}`}>
+      {state && <div className="absolute top-3 right-3 animate-pulse"><CheckCircle2 size={20} className="text-subtek-cyan drop-shadow-[0_0_8px_rgba(0,240,255,0.9)]" /></div>}
+      <div className={`p-3 rounded-full mb-3 transition-colors duration-500 ${state ? 'bg-subtek-cyan/10' : 'bg-slate-800 group-hover:bg-slate-700'}`}><Icon size={32} className={`${state ? 'text-subtek-cyan drop-shadow-[0_0_5px_rgba(0,240,255,0.6)]' : 'text-slate-500 group-hover:text-slate-300'}`} /></div>
+      <h3 className={`text-sm font-black leading-tight mb-1 ${state ? 'text-white' : 'text-slate-400 group-hover:text-slate-200'}`}>{title}</h3><span className={`text-[10px] font-semibold uppercase tracking-wider ${state ? 'text-subtek-cyan' : 'text-slate-600 group-hover:text-slate-400'}`}>{subtitle}</span>
     </div>
   );
 
   if (!isClient) return <div className="p-8 text-white">Cargando plataforma SUBTEK...</div>;
 
-  const hipotesisFiltradas = (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema') ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
+  const hipotesisFiltradas = (gerenciaActiva === 'Dashboard Global' || gerenciaActiva === 'Roadmap Ecosistema' || gerenciaActiva === 'Clientes Subtek') ? hipotesis : hipotesis.filter(h => h.gerencia === gerenciaActiva);
   const activasAsignado = hipotesis.filter(h => h.estatus !== 'Finalizado').reduce((acc, curr) => acc + (curr.presupuestoAsignado || 0), 0);
   const finalizadasGastado = hipotesis.filter(h => h.estatus === 'Finalizado').reduce((acc, curr) => acc + (curr.presupuestoGastado || 0), 0);
   const presupuestoDisponible = presupuestoTotalSubtek - activasAsignado - finalizadasGastado;
   const validadas = hipotesis.filter(h => h.veredicto === 'Validada').length;
 
+  // Calculos CRM
+  const totalClientes = clientes.length;
+  const clientesConvertidos = clientes.filter(c => c.esCliente).length;
+  const porcentajeClientes = totalClientes === 0 ? 0 : Math.round((clientesConvertidos / totalClientes) * 100);
+
   return (
     <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100 font-sans">
-      {/* MODAL DE BORRADO */}
+      {/* MODALES DE BORRADO */}
       {modalBorrar && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
           <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
             <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Confirmar Eliminación</h3>
-            <p className="text-slate-300 mb-6">¿Estás absolutamente seguro de borrar este proyecto? Se perderá permanentemente del sistema.</p>
+            <p className="text-slate-300 mb-6">¿Estás seguro de borrar este proyecto? Se perderá permanentemente del sistema.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalBorrar(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
               <button onClick={confirmarBorrado} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {modalBorrarCliente && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
+          <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
+            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Eliminar Prospecto B2B</h3>
+            <p className="text-slate-300 mb-6">¿Deseas eliminar este registro comercial de la base de datos de Subtek?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setModalBorrarCliente(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
+              <button onClick={confirmarBorradoCliente} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
             </div>
           </div>
         </div>
@@ -252,7 +287,11 @@ export default function SubtekDashboard() {
             <button onClick={forzarGuardadoNube} disabled={isSyncing} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
               <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : hayCambiosLocales ? '¡Guardar en Servidor!' : 'Nube Sincronizada'}
             </button>
-            <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan hover:bg-subtek-cyan hover:text-black text-subtek-cyan px-4 py-2 rounded transition-all duration-300 hover:scale-105 font-medium shadow-[0_0_10px_rgba(0,240,255,0.1)]"><Download size={18} /> Exportar (BI)</button>
+            {gerenciaActiva === 'Clientes Subtek' ? (
+              <button onClick={exportarClientesCSV} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all hover:scale-105 shadow-[0_0_10px_rgba(0,240,255,0.3)]"><Download size={18} /> Exportar CRM (BI)</button>
+            ) : (
+              <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan text-subtek-cyan hover:bg-subtek-cyan hover:text-black px-4 py-2 rounded transition-all hover:scale-105 font-medium"><Download size={18} /> Exportar (BI)</button>
+            )}
           </div>
         </div>
       </header>
@@ -275,14 +314,133 @@ export default function SubtekDashboard() {
             <button key={g} onClick={() => setGerenciaActiva(g)} className={`px-4 py-2 rounded-t-lg font-medium transition-all duration-300 flex items-center gap-2 ${gerenciaActiva === g ? 'bg-subtek-cyan text-black shadow-[0_-4px_15px_rgba(0,240,255,0.3)] transform -translate-y-1' : 'bg-subtek-card text-slate-400 hover:text-white hover:bg-slate-700'}`}>
               {g === 'Dashboard Global' && <BarChart3 size={16} />}
               {g === 'Roadmap Ecosistema' && <Map size={16} />}
+              {g === 'Clientes Subtek' && <Users size={16} />}
               {g}
             </button>
           ))}
         </div>
 
         {/* ========================================================================= */}
-        {/* NUEVA SECCIÓN: ROADMAP ECOSISTEMA B2B (TOP-DOWN WATERFALL / EMBUDO DE DATOS) */}
+        {/* NUEVA SECCIÓN: CLIENTES SUBTEK (MÓDULO CRM B2B) */}
         {/* ========================================================================= */}
+        {gerenciaActiva === 'Clientes Subtek' && (
+          <div className="animate-fade-in pb-20">
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                 <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3 flex items-center gap-2">Gestión Comercial y Leads B2B</h2>
+                 <p className="text-sm text-slate-400 mt-1 pl-4">Directorio de prospección para Empresas, Consorcios y Acueductos.</p>
+              </div>
+              <button onClick={agregarCliente} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-5 py-2.5 rounded transition-all duration-300 hover:scale-105 shadow-[0_0_15px_rgba(0,240,255,0.5)]"><Plus size={20} /> Nuevo Prospecto</button>
+            </div>
+
+            {clientes.length === 0 ? (
+              <div className="py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl mb-8"><p className="text-lg">Tu embudo de ventas está vacío. Haz clic en "Nuevo Prospecto" para empezar a cazar clientes.</p></div>
+            ) : (
+              <div className="space-y-6 mb-12">
+                {clientes.map((cli) => (
+                  <div key={cli.id} className="bg-subtek-card border border-slate-700 rounded-xl p-5 shadow-lg flex flex-col md:flex-row gap-6 relative transition-all hover:border-subtek-cyan/50 hover:shadow-[0_0_20px_rgba(0,240,255,0.1)]">
+                    
+                    <button onClick={() => setModalBorrarCliente(cli.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
+                    
+                    {/* Columna Izquierda: Identificación */}
+                    <div className="flex-1 space-y-4 border-b md:border-b-0 md:border-r border-slate-700 pb-4 md:pb-0 md:pr-6">
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-subtek-cyan font-bold uppercase tracking-wider flex items-center gap-1"><Building size={12}/> Empresa / Consorcio</label>
+                        <input type="text" placeholder="Ej: Aguas de la Sabana" className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-lg font-bold text-white transition-colors" value={cli.empresa} onChange={(e) => actualizarCliente(cli.id, 'empresa', e.target.value)} />
+                      </div>
+                      <div className="flex flex-col gap-1">
+                        <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"><Users size={12}/> Contacto Principal</label>
+                        <input type="text" placeholder="Ej: Ing. Reinaldo Bertrán" className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.nombreContacto} onChange={(e) => actualizarCliente(cli.id, 'nombreContacto', e.target.value)} />
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"><Phone size={12}/> Teléfono</label>
+                          <input type="text" placeholder="+57 300..." className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.telefono} onChange={(e) => actualizarCliente(cli.id, 'telefono', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"><Mail size={12}/> Correo</label>
+                          <input type="email" placeholder="@empresa.com" className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.correo} onChange={(e) => actualizarCliente(cli.id, 'correo', e.target.value)} />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Columna Derecha: Estado y Gestión */}
+                    <div className="flex-[1.5] grid grid-cols-1 md:grid-cols-2 gap-4">
+                      
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"><Target size={12}/> Estado Comercial</label>
+                          <select className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.estado} onChange={(e) => actualizarCliente(cli.id, 'estado', e.target.value)}>
+                            {ESTADOS_CLIENTE.map(est => <option key={est} value={est}>{est}</option>)}
+                          </select>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"><LinkIcon size={12}/> Origen del Lead</label>
+                          <select className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.origen} onChange={(e) => actualizarCliente(cli.id, 'origen', e.target.value)}>
+                            {ORIGEN_CLIENTE.map(or => <option key={or} value={or}>{or}</option>)}
+                          </select>
+                        </div>
+                        <div className="mt-2 flex items-center gap-3 bg-slate-900/50 p-2 rounded border border-slate-700">
+                           <input type="checkbox" id={`esCliente_${cli.id}`} checked={cli.esCliente} onChange={(e) => actualizarCliente(cli.id, 'esCliente', e.target.checked)} className="w-5 h-5 accent-subtek-cyan cursor-pointer" />
+                           <label htmlFor={`esCliente_${cli.id}`} className={`text-sm font-bold cursor-pointer ${cli.esCliente ? 'text-green-400' : 'text-slate-400'}`}>
+                             {cli.esCliente ? '✅ ¡Ya adquirió un producto/servicio!' : 'Aún no es cliente de pago'}
+                           </label>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-slate-400 font-bold uppercase tracking-wider flex items-center gap-1"><Info size={12}/> Estado Actual (Notas)</label>
+                          <textarea placeholder="Ej: Interesados en robot y posventa..." className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full h-16 resize-none" value={cli.estadoActual} onChange={(e) => actualizarCliente(cli.id, 'estadoActual', e.target.value)} />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <label className="text-[10px] text-subtek-cyan font-bold uppercase tracking-wider flex items-center gap-1"><TrendingUp size={12}/> Próximo Paso</label>
+                          <textarea placeholder="Ej: Agendar llamada técnica..." className="bg-[#1a0f2e] border border-subtek-cyan/40 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-subtek-cyan w-full h-16 resize-none" value={cli.proximoPaso} onChange={(e) => actualizarCliente(cli.id, 'proximoPaso', e.target.value)} />
+                        </div>
+                      </div>
+
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* DASHBOARD ANALÍTICO DEL CRM (DIAGRAMA DE TORTA) */}
+            {clientes.length > 0 && (
+              <div className="bg-[#0a0514] border border-slate-800 rounded-2xl p-8 shadow-2xl flex flex-col md:flex-row items-center justify-around gap-8">
+                 <div className="flex flex-col">
+                   <h3 className="text-xl font-black text-white mb-2 flex items-center gap-2"><Award className="text-subtek-cyan"/> Tasa de Conversión B2B</h3>
+                   <p className="text-slate-400 text-sm max-w-sm">Mide la salud de nuestro embudo. De todos los contactos institucionales que prospectamos, este es el porcentaje que ha comprado tecnología o servicios de Subtek.</p>
+                   <div className="mt-6 flex flex-col gap-3">
+                      <div className="flex items-center gap-3"><span className="w-4 h-4 rounded bg-subtek-cyan shadow-[0_0_10px_rgba(0,240,255,0.6)]"></span><span className="text-sm font-bold text-white">Clientes Ganados ({clientesConvertidos})</span></div>
+                      <div className="flex items-center gap-3"><span className="w-4 h-4 rounded bg-slate-700"></span><span className="text-sm font-bold text-slate-400">Leads en Gestión ({totalClientes - clientesConvertidos})</span></div>
+                   </div>
+                 </div>
+
+                 {/* Gráfico de Torta en SVG Puro */}
+                 <div className="relative w-48 h-48 flex items-center justify-center">
+                    <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
+                      {/* Fondo (Leads) */}
+                      <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#334155" strokeWidth="6" />
+                      {/* Porcentaje (Clientes) */}
+                      <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#00f0ff" strokeWidth="6" 
+                        strokeDasharray={`${porcentajeClientes} ${100 - porcentajeClientes}`} 
+                        className="transition-all duration-1000 ease-in-out drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]"
+                      />
+                    </svg>
+                    <div className="absolute flex flex-col items-center justify-center">
+                      <span className="text-3xl font-black text-white">{porcentajeClientes}%</span>
+                      <span className="text-[10px] font-bold text-subtek-cyan uppercase tracking-widest">Conversión</span>
+                    </div>
+                 </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ========================================= */}
+        {/* ROADMAP ECOSISTEMA B2B (TOP-DOWN WATERFALL) */}
+        {/* ========================================= */}
         {gerenciaActiva === 'Roadmap Ecosistema' && (
           <div className="mb-16 animate-fade-in flex flex-col items-center">
             
@@ -292,10 +450,8 @@ export default function SubtekDashboard() {
             </div>
 
             <div className="flex flex-col items-center w-full max-w-5xl bg-[#0a0514] border border-slate-800 p-10 md:p-14 rounded-3xl shadow-[0_20px_50px_rgba(0,0,0,0.5)] relative overflow-hidden">
-               {/* Resplandor de fondo estilo Sci-Fi */}
                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-subtek-cyan/5 rounded-full blur-[120px] pointer-events-none"></div>
 
-               {/* ================= TIER 1: BASE OPERATIVA (ARRIBA) ================= */}
                <div className="flex flex-col items-center w-full z-10">
                   <div className="bg-subtek-cyan text-black text-sm font-black px-8 py-2 rounded-full uppercase tracking-widest mb-8 shadow-[0_0_20px_rgba(0,240,255,0.6)] flex items-center gap-2 border-2 border-white/20">
                      Fase 1: Base Operativa y Captura de Datos
@@ -307,13 +463,11 @@ export default function SubtekDashboard() {
                   </div>
                </div>
 
-               {/* CONECTOR DOWNWARD */}
                <div className="flex flex-col items-center my-4 z-10 opacity-70">
                   <div className="w-1 h-12 bg-gradient-to-b from-subtek-cyan to-blue-500 rounded-full"></div>
                   <ArrowDown size={24} className="text-blue-500 -mt-2 animate-bounce" />
                </div>
 
-               {/* ================= TIER 2: DESARROLLO B2B / SAAS (MEDIO) ================= */}
                <div className="flex flex-col items-center w-full z-10">
                   <div className="bg-blue-900/40 text-blue-400 text-sm font-bold px-8 py-2 rounded-full uppercase tracking-widest mb-8 border border-blue-500/50 shadow-[0_0_15px_rgba(59,130,246,0.3)] flex items-center gap-2">
                      Fase 2: Ecosistema Digital B2B
@@ -326,13 +480,11 @@ export default function SubtekDashboard() {
                   </div>
                </div>
 
-               {/* CONECTOR DOWNWARD */}
                <div className="flex flex-col items-center my-4 z-10 opacity-50">
                   <div className="w-1 h-12 bg-gradient-to-b from-blue-500 to-purple-600 rounded-full"></div>
                   <ArrowDown size={24} className="text-purple-500 -mt-2 animate-bounce" />
                </div>
 
-               {/* ================= TIER 3: CÚSPIDE DE INTELIGENCIA (ABAJO) ================= */}
                <div className="flex flex-col items-center w-full z-10">
                   <div className="bg-purple-900/30 text-purple-400 text-sm font-bold px-8 py-2 rounded-full uppercase tracking-widest mb-8 border border-purple-500/40 shadow-[0_0_15px_rgba(168,85,247,0.2)] flex items-center gap-2">
                      Fase 3: Inteligencia Artificial Predictiva
@@ -343,13 +495,12 @@ export default function SubtekDashboard() {
                      <RoadmapCard id="fase3_macp" title="Modelos de Inversión MACP" subtitle="Priorización de Capital" icon={PieChart} state={roadmap.fase3_macp} />
                   </div>
                </div>
-
             </div>
           </div>
         )}
 
-        {/* WORKSPACE HEADER (Oculto en Roadmap) */}
-        {gerenciaActiva !== 'Roadmap Ecosistema' && (
+        {/* WORKSPACE HEADER (Oculto en Roadmap y Clientes) */}
+        {(gerenciaActiva !== 'Roadmap Ecosistema' && gerenciaActiva !== 'Clientes Subtek') && (
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">
               {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° y Flujo de Caja' : `Workspace: ${gerenciaActiva}`}
@@ -403,8 +554,8 @@ export default function SubtekDashboard() {
           </>
         )}
 
-        {/* GRID DE TARJETAS DE PROYECTO (SE OCULTA EN EL ROADMAP) */}
-        {gerenciaActiva !== 'Roadmap Ecosistema' && (
+        {/* GRID DE TARJETAS DE PROYECTO (SE OCULTA EN ROADMAP Y CLIENTES) */}
+        {(gerenciaActiva !== 'Roadmap Ecosistema' && gerenciaActiva !== 'Clientes Subtek') && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 pb-20">
             {hipotesisFiltradas.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto".</p></div>
@@ -435,29 +586,12 @@ export default function SubtekDashboard() {
 
                     {alertaActiva && <div className="flex items-center gap-2 text-red-400 text-sm bg-red-950/50 p-3 rounded border border-red-900 animate-pulse"><AlertTriangle size={16} /> ¡Peligro! Alto consumo de capital frente a bajo avance.</div>}
 
-                    {/* BLOQUE SUPERIOR */}
                     <div className="grid grid-cols-3 gap-3">
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label>
-                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}>
-                          <option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option>
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label>
-                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}>
-                          <option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option>
-                        </select>
-                      </div>
-                      <div className="flex flex-col gap-1">
-                        <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label>
-                        <select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}>
-                          <option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}
-                        </select>
-                      </div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Estatus</label><select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.estatus} onChange={(e) => actualizarHipotesis(hip.id, 'estatus', e.target.value)} disabled={isGlobal}><option value="Sin iniciar">Sin iniciar</option><option value="En curso">En curso</option><option value="Finalizado">Finalizado</option></select></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider">Veredicto</label><select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none transition-colors ${hip.estatus !== 'Finalizado' || isGlobal ? 'opacity-50 cursor-not-allowed' : 'focus:border-subtek-cyan'}`} value={hip.veredicto} disabled={hip.estatus !== 'Finalizado' || isGlobal} onChange={(e) => actualizarHipotesis(hip.id, 'veredicto', e.target.value)}><option value="Pendiente">Pendiente</option><option value="Validada">✅ Éxito</option><option value="Refutada">❌ Aprendizaje</option></select></div>
+                      <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Users size={12}/> Responsable</label><select className={`bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan transition-colors w-full ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.responsable} onChange={(e) => actualizarHipotesis(hip.id, 'responsable', e.target.value)} disabled={isGlobal}><option value="">Seleccionar...</option>{RESPONSABLES.map(r => <option key={r} value={r}>{r}</option>)}</select></div>
                     </div>
 
-                    {/* BLOQUE MEDIO */}
                     <div className="bg-[#111827] border border-slate-700/50 rounded-lg p-4 grid grid-cols-2 gap-4">
                       <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Inicio</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaInicio} onChange={(e) => actualizarHipotesis(hip.id, 'fechaInicio', e.target.value)} disabled={isGlobal} /></div>
                       <div className="flex flex-col gap-1"><label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><Calendar size={12}/> Fecha Límite</label><input type="date" className={`bg-transparent border-b border-slate-700 outline-none focus:border-subtek-cyan transition-colors w-full text-sm text-slate-300 ${isGlobal ? 'cursor-not-allowed opacity-80' : ''}`} value={hip.fechaLimite} onChange={(e) => actualizarHipotesis(hip.id, 'fechaLimite', e.target.value)} disabled={isGlobal} /></div>
@@ -469,7 +603,6 @@ export default function SubtekDashboard() {
                       </div>
                     </div>
 
-                    {/* BLOQUE INFERIOR */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="flex flex-col gap-2">
                          <label className="text-slate-400 text-[10px] uppercase font-bold tracking-wider flex items-center gap-1"><CheckSquare size={14}/> Subtareas</label>
