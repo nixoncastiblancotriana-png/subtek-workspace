@@ -6,7 +6,7 @@ import {
   Download, Plus, Trash2, Users, Link as LinkIcon,
   AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map,
   Camera, Droplets, Video, Cloud, Tag, Cpu, Eye, Zap, PieChart, CheckCircle2, ArrowDown,
-  Building, Phone, Mail, Target, Award, AlertOctagon, Send, Clock, UserPlus
+  Building, Phone, Mail, Target, Award, AlertOctagon, Send, Clock, UserPlus, FileText, FileUp
 } from 'lucide-react';
 
 // ==========================================
@@ -33,11 +33,20 @@ interface ClienteSubtek {
   id: string; empresa: string; nombreContacto: string; telefono: string; correo: string;
   esCliente: boolean; estado: string; estadoActual: string; proximoPaso: string; origen: string;
   referidoPor?: string;
+  ultimaCotizacion?: string; // NUEVO CAMPO ESTRATÉGICO PARA PDF
 }
 
 const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Clientes Subtek', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
 const RESPONSABLES = ['Nixon Castiblanco', 'Edwin Escalante', 'Daniel Arevalo', 'Lis Gordillo'];
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+
+const ESTADOS_CLIENTE = [
+  "Prospecto o contacto inicial", 
+  "Cotización enviada", 
+  "Pendiente respuesta", 
+  "Cliente activo o con interacción reciente", 
+  "Oportunidad detenida o sin respuesta por mas de 2 semanas"
+];
 
 const ORIGEN_CLIENTE = ["Página web", "Referido", "Redes sociales", "Evento empresarial", "Soporte tecnico Welltep", "Otro"];
 
@@ -138,7 +147,7 @@ export default function SubtekDashboard() {
   const agregarCliente = () => {
     const nuevo: ClienteSubtek = {
       id: Math.random().toString(36).substr(2, 9), empresa: '', nombreContacto: '', telefono: '', correo: '',
-      esCliente: false, estado: 'Prospecto o contacto inicial', estadoActual: '', proximoPaso: '', origen: 'Página web', referidoPor: ''
+      esCliente: false, estado: 'Prospecto o contacto inicial', estadoActual: '', proximoPaso: '', origen: 'Página web', referidoPor: '', ultimaCotizacion: ''
     };
     setClientes([nuevo, ...clientes]);
     setHayCambiosLocales(true);
@@ -155,6 +164,14 @@ export default function SubtekDashboard() {
       try { await supabase.from('clientes').delete().eq('id', modalBorrarCliente); } catch(e){}
       setModalBorrarCliente(null);
       setHayCambiosLocales(true);
+    }
+  };
+
+  // Manejador del archivo de Cotización
+  const handleFileUpload = (id: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      actualizarCliente(id, 'ultimaCotizacion', file.name);
     }
   };
 
@@ -216,10 +233,10 @@ export default function SubtekDashboard() {
 
   // 5. EXPORTACIÓN BI
   const exportarClientesCSV = () => {
-    const headers = ['ID', 'Empresa', 'Contacto', 'Telefono', 'Correo', 'Es_Cliente', 'Estado', 'Estado_Actual', 'Proximo_Paso', 'Origen', 'Referido_Por'];
+    const headers = ['ID', 'Empresa', 'Contacto', 'Telefono', 'Correo', 'Es_Cliente', 'Estado', 'Estado_Actual', 'Proximo_Paso', 'Origen', 'Referido_Por', 'Ultima_Cotizacion'];
     const rows = clientes.map(c => [
       c.id, `"${c.empresa}"`, `"${c.nombreContacto}"`, `"${c.telefono}"`, `"${c.correo}"`, 
-      c.esCliente ? 'SI' : 'NO', `"${c.estado}"`, `"${c.estadoActual.replace(/\n/g, " ")}"`, `"${c.proximoPaso.replace(/\n/g, " ")}"`, `"${c.origen}"`, `"${(c.referidoPor || '').replace(/\n/g, " ")}"`
+      c.esCliente ? 'SI' : 'NO', `"${c.estado}"`, `"${c.estadoActual.replace(/\n/g, " ")}"`, `"${c.proximoPaso.replace(/\n/g, " ")}"`, `"${c.origen}"`, `"${(c.referidoPor || '').replace(/\n/g, " ")}"`, `"${(c.ultimaCotizacion || '').replace(/\n/g, " ")}"`
     ]);
     const csvContent = "data:text/csv;charset=utf-8," + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
     const link = document.createElement("a"); link.setAttribute("href", encodeURI(csvContent)); link.setAttribute("download", `Subtek_Clientes_BI_${new Date().toISOString().split('T')[0]}.csv`);
@@ -246,7 +263,7 @@ export default function SubtekDashboard() {
     document.body.appendChild(link); link.click(); link.remove();
   };
 
-  // RESTO DE FUNCIONES (Hipótesis, Presupuesto, etc.)
+  // RESTO DE FUNCIONES
   const toggleRoadmap = (id: string) => { setRoadmap(prev => ({ ...prev, [id]: !prev[id] })); setHayCambiosLocales(true); };
   const guardarPresupuestoTotal = async (valor: number) => { setPresupuestoTotalSubtek(valor); setHayCambiosLocales(true); };
   const congelarPresupuestoMensual = () => { setHayCambiosLocales(true); alert(`✅ Presupuesto de ${mesPpto} ${anioPpto} congelado en $${presupuestoTotalSubtek.toLocaleString()}.\n\nNo olvides hacer clic en "¡Guardar en Servidor!".`); };
@@ -284,7 +301,6 @@ export default function SubtekDashboard() {
   const presupuestoDisponible = presupuestoTotalSubtek - activasAsignado - finalizadasGastado;
   const validadas = hipotesis.filter(h => h.veredicto === 'Validada').length;
 
-  // Calculos CRM
   const totalClientes = clientes.length;
   const clientesConvertidos = clientes.filter(c => c.esCliente).length;
   const porcentajeClientes = totalClientes === 0 ? 0 : Math.round((clientesConvertidos / totalClientes) * 100);
@@ -363,7 +379,7 @@ export default function SubtekDashboard() {
         </div>
 
         {/* ========================================================================= */}
-        {/* NUEVA SECCIÓN: CLIENTES SUBTEK (MÓDULO CRM B2B CON SEMÁFORO) */}
+        {/* SECCIÓN: CLIENTES SUBTEK (MÓDULO CRM B2B + GESTOR DE COTIZACIONES) */}
         {/* ========================================================================= */}
         {gerenciaActiva === 'Clientes Subtek' && (
           <div className="animate-fade-in pb-20">
@@ -381,7 +397,6 @@ export default function SubtekDashboard() {
               <div className="space-y-6 mb-12">
                 {clientes.map((cli) => {
                   
-                  // LÓGICA DE SEMÁFORO COMERCIAL B2B
                   const styleConfig = getStateStyle(cli.estado);
                   const StateIcon = styleConfig.icon;
 
@@ -391,7 +406,7 @@ export default function SubtekDashboard() {
                     <button onClick={() => setModalBorrarCliente(cli.id)} className="absolute top-4 right-4 text-slate-500 hover:text-red-500 transition-colors z-20"><Trash2 size={18} /></button>
                     
                     {/* Columna Izquierda: Identificación */}
-                    <div className="flex-1 space-y-4 border-b md:border-b-0 md:border-r border-slate-700/50 pb-4 md:pb-0 md:pr-6">
+                    <div className="flex-1 space-y-4 border-b md:border-b-0 md:border-r border-slate-700/50 pb-4 md:pb-0 md:pr-6 flex flex-col">
                       <div className="flex flex-col gap-1">
                         <label className="text-[10px] text-subtek-cyan font-bold uppercase tracking-wider flex items-center gap-1"><Building size={12}/> Empresa / Consorcio</label>
                         <input type="text" placeholder="Ej: Aguas de la Sabana" className="bg-transparent border-b border-slate-600 focus:border-subtek-cyan outline-none w-full text-lg font-bold text-white transition-colors" value={cli.empresa} onChange={(e) => actualizarCliente(cli.id, 'empresa', e.target.value)} />
@@ -410,6 +425,44 @@ export default function SubtekDashboard() {
                           <input type="email" placeholder="@empresa.com" className="bg-slate-800 border border-slate-700 rounded p-2 text-sm outline-none focus:border-subtek-cyan text-white w-full" value={cli.correo} onChange={(e) => actualizarCliente(cli.id, 'correo', e.target.value)} />
                         </div>
                       </div>
+
+                      {/* GESTOR DE COTIZACIONES (NUEVO) */}
+                      <div className="flex flex-col gap-2 mt-auto pt-4 border-t border-slate-700/50">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="text-[10px] text-subtek-cyan font-bold uppercase tracking-wider flex items-center gap-1">
+                            <FileText size={12}/> Última Cotización Enviada
+                          </label>
+                          <span className="text-[9px] text-orange-400 bg-orange-400/10 px-2 py-0.5 rounded flex items-center gap-1 animate-pulse border border-orange-500/20">
+                            <AlertTriangle size={10}/> Recuerda adjuntar la cotización vigente
+                          </span>
+                        </div>
+                        
+                        {cli.ultimaCotizacion ? (
+                          <div className="flex items-center justify-between bg-slate-900/80 border border-slate-600 rounded p-2 transition-all hover:border-subtek-cyan">
+                             <div className="flex items-center gap-2 overflow-hidden">
+                               <div className="p-1.5 bg-red-500/20 rounded text-red-400 shrink-0"><FileText size={14} /></div>
+                               <span className="text-xs font-medium text-slate-200 truncate" title={cli.ultimaCotizacion}>{cli.ultimaCotizacion}</span>
+                             </div>
+                             <button onClick={() => actualizarCliente(cli.id, 'ultimaCotizacion', '')} className="text-slate-500 hover:text-red-400 transition-colors shrink-0 ml-2" title="Eliminar y reemplazar">
+                               <Trash2 size={14} />
+                             </button>
+                          </div>
+                        ) : (
+                          <div className="relative group w-full">
+                            <input 
+                              type="file" 
+                              accept=".pdf" 
+                              onChange={(e) => handleFileUpload(cli.id, e)}
+                              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                            />
+                            <div className="flex items-center justify-center gap-2 bg-subtek-cyan/5 hover:bg-subtek-cyan/10 border border-dashed border-subtek-cyan/30 group-hover:border-subtek-cyan rounded-lg p-2 transition-all text-subtek-cyan">
+                              <FileUp size={16} />
+                              <span className="text-xs font-bold">Subir archivo PDF...</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
                     </div>
 
                     {/* Columna Derecha: Estado y Gestión */}
@@ -449,7 +502,7 @@ export default function SubtekDashboard() {
                             {ORIGEN_CLIENTE.map(or => <option key={or} value={or}>{or}</option>)}
                           </select>
                           
-                          {/* CAMPO CONDICIONAL: REFERIDO POR (Ultra-visible) */}
+                          {/* CAMPO CONDICIONAL: REFERIDO POR */}
                           {cli.origen === 'Referido' && (
                             <div className="flex flex-col gap-1 mt-3 p-3 bg-subtek-cyan/10 border border-subtek-cyan/50 rounded-lg animate-fade-in shadow-[0_0_15px_rgba(0,240,255,0.1)]">
                               <label className="text-[10px] text-subtek-cyan font-black uppercase tracking-widest flex items-center gap-1">🤝 ¿Quién lo refirió?</label>
@@ -496,14 +549,10 @@ export default function SubtekDashboard() {
                    </div>
                  </div>
 
-                 {/* Gráfico de Torta en SVG Puro */}
                  <div className="relative w-48 h-48 flex items-center justify-center">
                     <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
                       <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#334155" strokeWidth="6" />
-                      <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#00f0ff" strokeWidth="6" 
-                        strokeDasharray={`${porcentajeClientes} ${100 - porcentajeClientes}`} 
-                        className="transition-all duration-1000 ease-in-out drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]"
-                      />
+                      <circle cx="18" cy="18" r="15.91549431" fill="transparent" stroke="#00f0ff" strokeWidth="6" strokeDasharray={`${porcentajeClientes} ${100 - porcentajeClientes}`} className="transition-all duration-1000 ease-in-out drop-shadow-[0_0_5px_rgba(0,240,255,0.8)]" />
                     </svg>
                     <div className="absolute flex flex-col items-center justify-center">
                       <span className="text-3xl font-black text-white">{porcentajeClientes}%</span>
@@ -515,9 +564,7 @@ export default function SubtekDashboard() {
           </div>
         )}
 
-        {/* ========================================= */}
         {/* ROADMAP ECOSISTEMA B2B (TOP-DOWN WATERFALL) */}
-        {/* ========================================= */}
         {gerenciaActiva === 'Roadmap Ecosistema' && (
           <div className="mb-16 animate-fade-in flex flex-col items-center">
             
