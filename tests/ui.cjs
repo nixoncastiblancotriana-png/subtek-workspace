@@ -39,11 +39,13 @@ const outputDir=process.env.SUBTEK_QA_OUTPUT_DIR || path.join(process.cwd(),'tes
  const page=await ctx.newPage();page.setDefaultTimeout(10000); const errors=[];page.on('pageerror',e=>errors.push(e.message));
  page.on('dialog',d=>d.dismiss());
  await page.goto('http://127.0.0.1:3100');
- await page.getByText('Hay diferencias.',{exact:false}).waitFor();
+ await page.getByRole('button',{name:'Salir',exact:true}).waitFor();
+ await page.waitForFunction(()=>!!document.querySelector('input[type=number]') && !document.querySelector('input[type=number]').disabled);
+ assert.equal(await page.getByRole('region',{name:'Sincronización y transición'}).count(),0);
  assert.equal(writes,0,'No debe publicar defaults ni migrar automáticamente');
  assert.equal(await page.evaluate(()=>localStorage.getItem('subtek-ppto-v6')),'500');
- await page.getByRole('checkbox',{name:'Revisé los respaldos',exact:false}).check();
- await page.getByRole('button',{name:'Exportar y adoptar nube',exact:true}).click();
+ await page.getByRole('button',{name:'Guardar cambios',exact:true}).click();
+ await page.getByRole('button',{name:'Usar datos del equipo',exact:true}).click();
  await page.getByRole('button',{name:'Nuevo compromiso',exact:true}).click();
  await page.getByLabel('Tarea o acuerdo').fill('Preparar evidencia para weekly');
  await page.getByLabel('Responsable del compromiso').fill('Edwin Escalante');
@@ -54,8 +56,8 @@ const outputDir=process.env.SUBTEK_QA_OUTPUT_DIR || path.join(process.cwd(),'tes
  assert.equal(notes.length,2);
  await page.locator('input[type=number]').nth(1).fill('1200');
  config={...config,total:1100,revision:2};
- await page.getByRole('button',{name:'Guardar roadmap y presupuesto',exact:true}).click();
- await page.getByText('No se confirmó el guardado: Conflicto de revisión', {exact:true}).waitFor();
+ await page.getByRole('button',{name:'Guardar cambios',exact:true}).click();
+ await page.getByText('Hay una versión más reciente. Actualiza los datos antes de guardar.', {exact:true}).waitFor();
  assert.equal(config.total,1100,'No sobrescribir revisión nueva');
  assert.equal(await page.locator('input[type=number]').nth(1).inputValue(),'1200','Conservar borrador en conflicto');
  await page.getByRole('button',{name:'Abrir / editar',exact:true}).first().click();

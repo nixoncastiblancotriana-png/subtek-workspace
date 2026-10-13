@@ -126,18 +126,18 @@ export function useDashboardConfig(supabase: SupabaseClient) {
     try { update({ ...current.current, draft: { ...current.current.draft, ...partial }, dirty: true }); }
     catch (e: any) { setMessage('No se conservó la edición: ' + e.message); }
   }
-  function exportBackup() {
+  function exportBackup(download = true) {
     // Copia durable antes de cualquier adopción: no depender de que el navegador complete una descarga.
     localStorage.setItem(`subtek-config-v7-backup:${user.current ?? 'local'}:${crypto.randomUUID()}`,
-      JSON.stringify({ at: new Date().toISOString(), state: current.current, legacyTotal }));
-    downloadJSON({ original: JSON.parse(localStorage.getItem(BACKUP_KEY) ?? 'null'),
+      JSON.stringify({ at: new Date().toISOString(), state: current.current, legacyTotal, currentLegacy: snapshotLegacy(localStorage) }));
+    if (download) downloadJSON({ original: JSON.parse(localStorage.getItem(BACKUP_KEY) ?? 'null'),
       currentLegacy: snapshotLegacy(localStorage), config: current.current, legacyTotal,
       preservedDrafts: Object.fromEntries(Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i)!).filter(k => k.startsWith('subtek-config-v7:') || k.startsWith('subtek-config-v7-backup:') || k.startsWith('subtek-weekly-draft:') || k.startsWith('subtek-weekly-backup:')).map(k => [k, localStorage.getItem(k)])) }, 'subtek-respaldo-transicion.json');
   }
   function adoptCloud() {
     if (busy.current || !current.current.ready || !current.current.remote) return;
     try {
-      exportBackup(); const remote = current.current.remote;
+      exportBackup(false); const remote = current.current.remote;
       update({ draft: validateConfig(remote), base: remote, remote, ready: true, dirty: false, review: false, conflict: false });
       setMessage('Se adoptó la nube; el borrador anterior quedó exportado.');
     } catch (e: any) { setMessage(e.message); }
@@ -145,7 +145,7 @@ export function useDashboardConfig(supabase: SupabaseClient) {
   function acceptReviewedDraft() {
     if (busy.current || !current.current.ready) return;
     try {
-      exportBackup(); validateConfig(current.current.draft);
+      exportBackup(false); validateConfig(current.current.draft);
       update({ ...current.current, base: current.current.remote, review: false, conflict: false, dirty: true });
       setMessage('Borrador conciliado. Guardar usará la revisión que acabas de revisar.');
     } catch (e: any) { setMessage(e.message); }
@@ -157,7 +157,7 @@ export function useDashboardConfig(supabase: SupabaseClient) {
     const draft = validateConfig(s.draft), ticket = generation.current;
     busy.current = true; setWorking(true);
     try {
-      exportBackup();
+      exportBackup(false);
       const { data, error } = await supabase.rpc('subtek_save_dashboard_config', {
         p_expected_revision: s.base?.revision ?? 0, p_roadmap: draft.roadmap, p_total: draft.total, p_mes: draft.mes, p_anio: draft.anio,
       });
@@ -172,5 +172,5 @@ export function useDashboardConfig(supabase: SupabaseClient) {
     } catch (e: any) { setMessage('No se confirmó el guardado: ' + e.message); throw e; }
     finally { busy.current = false; setWorking(false); }
   }
-  return { ...state, uid, working, message, legacyTotal, edit, load: () => load(), save, exportBackup, adoptCloud, acceptReviewedDraft };
+  return { ...state, uid, working, message, legacyTotal, edit, load: async () => { await load(); return current.current.ready; }, save, exportBackup, adoptCloud, acceptReviewedDraft };
 }

@@ -60,10 +60,14 @@ export default function SubtekDashboard() {
   const { total: presupuestoTotalSubtek, mes: mesPpto, anio: anioPpto, roadmap } = config.draft;
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   const legacyRequest = useRef(0);
-  useEffect(() => { setReviewed(false); }, [config.review, config.remote?.revision]);
+
   const [email, setEmail] = useState('nixoncastiblancotriana@gmail.com');
-  const [loginLink, setLoginLink] = useState('');
-  const [reviewed, setReviewed] = useState(false);
+  const [showAccess, setShowAccess] = useState(false);
+  const [showReview, setShowReview] = useState(false);
+  const [accessBusy, setAccessBusy] = useState(false);
+  const [accessMessage, setAccessMessage] = useState('');
+  const [notice, setNotice] = useState('');
+  useEffect(() => { if (config.uid) setShowAccess(false); }, [config.uid]);
   const [legacyReady, setLegacyReady] = useState(false);
   const [legacyConflict, setLegacyConflict] = useState(false);
   const [legacyMessage, setLegacyMessage] = useState('Proyectos y clientes pendientes de verificar.');
@@ -90,7 +94,6 @@ export default function SubtekDashboard() {
     } catch (e) { setLegacyMessage('No se pudieron recuperar los datos locales. Conserva y revisa el respaldo antes de continuar.'); return; }
     
     setDatosCargados(true);
-    cargarDatosNube();
   }, []);
 
   // 2. GUARDADO LOCAL AUTOMÁTICO
@@ -149,7 +152,10 @@ export default function SubtekDashboard() {
   };
 
   const forzarGuardadoNube = async () => {
-    if (!legacyReady || legacyConflict || isSyncing) return;
+    if (!config.uid) { setShowAccess(true); return; }
+    if (isSyncing || config.working) return;
+    if (!legacyReady || !config.ready) { await cargarDatosNube(); const refreshed = await config.load(); setNotice(refreshed ? 'Datos actualizados. Puedes volver a guardar.' : 'No pudimos cargar los datos. Intenta nuevamente.'); return; }
+    if (legacyConflict || config.review || config.conflict) { setShowReview(true); return; }
     setIsSyncing(true);
     try {
       // La configuración se confirma mediante CAS; nunca hacer upsert del presupuesto antiguo.
@@ -166,9 +172,9 @@ export default function SubtekDashboard() {
       if (!data?.hipotesis || !data?.clientes) throw new Error('Confirmación incompleta.');
       setLegacyRemote(data); setHipotesis(data.hipotesis); setClientes(data.clientes);
       setHayCambiosLocales(false);
-      alert('Guardado confirmado. Roadmap y presupuesto comparten una revisión.');
+      setNotice('Cambios guardados.');
     } catch (error: any) {
-      alert('No se confirmó el guardado completo. Algunas tablas pueden haberse guardado.\n' + error.message);
+      setNotice(error.code === '40001' ? 'Hay una versión más reciente. Actualiza los datos antes de guardar.' : 'No se pudo completar el guardado. Tus cambios se conservan en este navegador.');
     } finally { setIsSyncing(false); }
   };
 
@@ -343,6 +349,27 @@ export default function SubtekDashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100 font-sans">
+      {showAccess && !config.uid && <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4" onClick={()=>setShowAccess(false)}>
+        <section role="dialog" aria-modal="true" aria-labelledby="access-title" className="bg-subtek-card border border-subtek-cyan/40 rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e=>e.stopPropagation()}>
+          <div className="flex justify-between items-center mb-3"><h2 id="access-title" className="font-bold text-xl">Acceso a Subtek</h2><button aria-label="Cerrar acceso" onClick={()=>setShowAccess(false)}><X size={18}/></button></div>
+          <p className="text-sm text-slate-400 mb-4">Recibe un enlace en tu correo para entrar.</p>
+          <form onSubmit={async e=>{e.preventDefault();if(accessBusy)return; if(email.trim().toLowerCase()!=='nixoncastiblancotriana@gmail.com'){setAccessMessage('Solicita acceso al administrador para este correo.');return;}setAccessBusy(true);setAccessMessage('');try{const {error}=await supabase.auth.signInWithOtp({email:email.trim(),options:{shouldCreateUser:true,emailRedirectTo:window.location.origin}});setAccessMessage(error?'No pudimos enviar el acceso. Intenta nuevamente.':'Revisa tu correo para continuar.');}catch{setAccessMessage('No pudimos enviar el acceso. Intenta nuevamente.');}finally{setAccessBusy(false);}}}>
+            <label htmlFor="access-email" className="text-sm text-slate-300">Correo</label><input id="access-email" type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" className="mt-1 mb-4 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 outline-none focus:border-subtek-cyan"/>
+            <button disabled={accessBusy} className="w-full bg-subtek-cyan text-black font-bold rounded-lg px-4 py-2 disabled:opacity-50">{accessBusy?'Enviando…':'Recibir acceso por correo'}</button>
+          </form>
+          {accessMessage && <p role="status" className="mt-3 text-sm text-slate-300">{accessMessage}</p>}
+        </section>
+      </div>}
+      {showReview && config.uid && <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
+        <section role="dialog" aria-modal="true" aria-labelledby="review-title" className="bg-subtek-card border border-subtek-cyan/40 rounded-2xl p-6 max-w-md w-full shadow-xl">
+          <div className="flex justify-between items-center mb-3"><h2 id="review-title" className="font-bold text-xl">Confirmar cambios</h2><button aria-label="Cerrar confirmación" onClick={()=>setShowReview(false)}><X size={18}/></button></div>
+          <p className="text-sm text-slate-400 mb-4">{config.remote || legacyConflict ? 'Hay otra versión de los datos. Tu copia local se conservará como respaldo.' : 'Guardaremos el roadmap y el presupuesto que ves en el tablero.'}</p>
+          <div className="flex flex-wrap gap-3">
+            {(config.remote || legacyConflict) && <button disabled={config.working} className="border border-slate-600 rounded-lg px-4 py-2 text-sm" onClick={()=>{try{if(config.remote)config.adoptCloud();if(legacyConflict)adoptarLegacyNube();setShowReview(false);setNotice('Datos actualizados. Tu copia anterior quedó respaldada.');}catch{setNotice('No se pudieron actualizar los datos. Tus cambios se conservan.');}}}>Usar datos del equipo</button>}
+            {!legacyConflict && <button disabled={config.working} className="bg-subtek-cyan text-black font-bold rounded-lg px-4 py-2 text-sm" onClick={async()=>{try{config.acceptReviewedDraft();await config.save();setShowReview(false);setNotice('Configuración guardada.');}catch{setNotice('No se pudo guardar. Tus cambios se conservan.');}}}>Guardar configuración actual</button>}
+          </div>
+        </section>
+      </div>}
       {/* MODALES DE BORRADO */}
       {modalBorrar && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
@@ -378,8 +405,9 @@ export default function SubtekDashboard() {
             <div className="flex flex-col"><span className="text-xl font-black tracking-widest text-white">SUBTEK</span><span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span></div>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={forzarGuardadoNube} disabled={isSyncing || config.working || !config.ready || config.review || config.conflict || !legacyReady || legacyConflict} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
-              <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : hayCambiosLocales || config.dirty ? '¡Guardar en Servidor!' : config.ready && !config.review && !config.conflict && legacyReady && !legacyConflict ? 'Servidor comprobado' : 'Pendiente de comprobar'}
+            {config.uid ? <button onClick={async()=>{const {error}=await supabase.auth.signOut(); if(error)setNotice('No se pudo cerrar la sesión.');}} className="text-xs text-slate-400 hover:text-white">Salir</button> : <button onClick={()=>setShowAccess(true)} className="text-sm text-subtek-cyan border border-subtek-cyan/30 rounded px-3 py-2 hover:bg-subtek-cyan/10">Acceder</button>}
+            <button onClick={forzarGuardadoNube} disabled={isSyncing || config.working} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
+              <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : 'Guardar cambios'}
             </button>
             {gerenciaActiva === 'Clientes Subtek' ? (
               <button onClick={exportarClientesCSV} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all hover:scale-105 shadow-[0_0_10px_rgba(0,240,255,0.3)]"><Download size={18} /> Exportar CRM (BI)</button>
@@ -402,34 +430,7 @@ export default function SubtekDashboard() {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
-        <section className="mb-6 p-4 border border-slate-600 rounded space-y-3" aria-label="Sincronización y transición">
-          <p>{config.message}</p>
-          <p>{legacyMessage}</p>
-          <p>Cuenta: {config.uid ?? 'sin sesión'} · Revisión: {config.base?.revision ?? 'sin inicializar'}</p>
-          {config.uid && <button onClick={async () => { config.exportBackup(); const { error } = await supabase.auth.signOut(); if (error) alert(error.message); }} className="text-xs text-slate-400">Exportar respaldo y cerrar sesión</button>}
-          {!config.uid && <div className="flex gap-2">
-            <input aria-label="Correo para iniciar sesión" type="email" value={email} onChange={e => setEmail(e.target.value)} className="bg-slate-800 p-2" />
-            <button onClick={async () => { if (email.trim().toLowerCase() !== 'nixoncastiblancotriana@gmail.com') { alert('Esta cuenta no está autorizada. Solicita acceso al administrador.'); return; } const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } }); alert(error ? error.message : 'Revisa tu correo para iniciar sesión. Si el enlace no regresa a esta app, copia el enlace del correo en el campo inferior.'); }}>Enviar enlace de acceso</button>
-          </div>}
-          {!config.uid && <details className="text-sm text-slate-400"><summary>Usar el enlace del correo si no regresa a esta aplicación</summary><p className="mt-2">Copia el enlace de inicio de sesión del correo y pégalo aquí. El enlace se valida directamente con Supabase.</p><input type="password" aria-label="Enlace de acceso del correo" className="bg-slate-800 p-2 w-full mt-2" value={loginLink} onChange={e=>setLoginLink(e.target.value)} autoComplete="off"/><button onClick={async ()=>{ try { const url=new URL(loginLink); if (url.hostname !== 'fzjovmnudqbwukyzsznc.supabase.co' || url.pathname !== '/auth/v1/verify') throw new Error('El enlace debe ser de Supabase y corresponder al inicio de sesión.'); const token=url.searchParams.get('token'); const type=url.searchParams.get('type'); if(!token || !['magiclink','signup','email'].includes(type ?? '')) throw new Error('Enlace de acceso inválido.'); const {error}=await supabase.auth.verifyOtp({token_hash:token,type:type as any}); if(error) throw error; setLoginLink(''); } catch(e:any){alert(e.message);} }} className="text-subtek-cyan mt-2">Validar enlace e ingresar</button></details>}
-          <div className="flex flex-wrap gap-4">
-            <button onClick={config.exportBackup}>Exportar respaldo</button>
-            <button onClick={config.load} disabled={config.working || !config.uid}>Comprobar configuración en nube</button>
-            <button onClick={() => config.save().catch(e => alert(e.message))} disabled={config.working || !config.ready || config.review || config.conflict}>Guardar roadmap y presupuesto</button>
-            {legacyConflict && <button onClick={adoptarLegacyNube}>Exportar y adoptar proyectos/clientes de la nube</button>}
-            {!legacyReady && <button onClick={cargarDatosNube}>Reintentar proyectos/clientes</button>}
-          </div>
-          <p>Total anterior en presupuesto_global: {config.legacyTotal === null ? 'no verificado o sin fila' : config.legacyTotal}</p>
-          {config.review && <div className="space-y-2">
-            <p>Compara el borrador con los otros computadores. Los valores iniciales pueden ser defaults; ninguna copia se publica automáticamente.</p>
-            <pre className="text-xs overflow-auto">{JSON.stringify({ borrador: config.draft, nube: config.remote }, null, 2)}</pre>
-            <label><input type="checkbox" checked={reviewed} onChange={e => setReviewed(e.target.checked)} /> Revisé los respaldos de todos los dispositivos y concilié total, periodo y las diez fases.</label>
-            <div className="flex gap-4">
-              <button onClick={config.adoptCloud} disabled={!reviewed || config.working || !config.ready || !config.remote}>Exportar y adoptar nube</button>
-              <button onClick={config.acceptReviewedDraft} disabled={!reviewed || config.working || !config.ready}>Exportar y aprobar borrador conciliado</button>
-            </div>
-          </div>}
-        </section>
+        {notice && <div role="status" className="mb-4 rounded-lg border border-subtek-cyan/20 bg-subtek-card px-4 py-3 text-sm text-slate-300 flex justify-between gap-3"><span>{notice}</span><button aria-label="Cerrar aviso" onClick={()=>setNotice('')}><X size={16}/></button></div>}
 
         <fieldset disabled={isSyncing || !legacyReady} className="min-w-0">
         {/* NAVEGACIÓN */}
@@ -824,4 +825,5 @@ export default function SubtekDashboard() {
     </div>
   );
 }
+
 
