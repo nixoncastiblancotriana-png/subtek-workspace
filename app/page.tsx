@@ -18,7 +18,7 @@ const SUPABASE_ANON_KEY = 'sb_publishable_rxf7CQsMHtXx-Ndo1RpE5A_52kMOtb3';
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-type Gerencia = 'Roadmap Ecosistema' | 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos' | 'Clientes Subtek';
+type Gerencia = 'Roadmap Ecosistema' | 'Dashboard Global' | 'Gerencia General' | 'Gerencia de Producto' | 'Gerencia Comercial' | 'Gerencia de Procesos y Proyectos' | 'Clientes Subtek' | 'Weekly Subtek';
 type Estatus = 'Sin iniciar' | 'En curso' | 'Finalizado';
 type Veredicto = 'Pendiente' | 'Validada' | 'Refutada';
 
@@ -37,7 +37,7 @@ interface ClienteSubtek {
   ultimaCotizacion?: string; // NUEVO CAMPO ESTRATÉGICO PARA PDF
 }
 
-const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Clientes Subtek', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos'];
+const GERENCIAS: Gerencia[] = ['Roadmap Ecosistema', 'Dashboard Global', 'Clientes Subtek', 'Gerencia General', 'Gerencia de Producto', 'Gerencia Comercial', 'Gerencia de Procesos y Proyectos', 'Weekly Subtek'];
 const RESPONSABLES = ['Nixon Castiblanco', 'Edwin Escalante', 'Daniel Arevalo', 'Lis Gordillo'];
 const MESES = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
 
@@ -343,14 +343,14 @@ export default function SubtekDashboard() {
             <div className="flex flex-col"><span className="text-xl font-black tracking-widest text-white">SUBTEK</span><span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span></div>
           </div>
           <div className="flex items-center gap-4">
-            <button onClick={forzarGuardadoNube} disabled={isSyncing} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
+            {gerenciaActiva !== 'Weekly Subtek' && <><button onClick={forzarGuardadoNube} disabled={isSyncing} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
               <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : hayCambiosLocales ? '¡Guardar en Servidor!' : 'Nube Sincronizada'}
             </button>
             {gerenciaActiva === 'Clientes Subtek' ? (
               <button onClick={exportarClientesCSV} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all hover:scale-105 shadow-[0_0_10px_rgba(0,240,255,0.3)]"><Download size={18} /> Exportar CRM (BI)</button>
             ) : (
               <button onClick={exportarCSV} className="flex items-center gap-2 bg-transparent border border-subtek-cyan text-subtek-cyan hover:bg-subtek-cyan hover:text-black px-4 py-2 rounded transition-all hover:scale-105 font-medium"><Download size={18} /> Exportar (BI)</button>
-            )}
+            )}</>}
           </div>
         </div>
       </header>
@@ -374,6 +374,7 @@ export default function SubtekDashboard() {
               {g === 'Dashboard Global' && <BarChart3 size={16} />}
               {g === 'Roadmap Ecosistema' && <Map size={16} />}
               {g === 'Clientes Subtek' && <Users size={16} />}
+              {g === 'Weekly Subtek' && <FileText size={16} />}
               {g}
             </button>
           ))}
@@ -625,7 +626,7 @@ export default function SubtekDashboard() {
         )}
 
         {/* WORKSPACE HEADER (Oculto en Roadmap y Clientes) */}
-        {(gerenciaActiva !== 'Roadmap Ecosistema' && gerenciaActiva !== 'Clientes Subtek') && (
+        {(gerenciaActiva !== 'Roadmap Ecosistema' && gerenciaActiva !== 'Clientes Subtek' && gerenciaActiva !== 'Weekly Subtek') && (
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-bold border-l-4 border-subtek-cyan pl-3">
               {gerenciaActiva === 'Dashboard Global' ? 'Visión 360° y Flujo de Caja' : `Workspace: ${gerenciaActiva}`}
@@ -680,7 +681,7 @@ export default function SubtekDashboard() {
         )}
 
         {/* GRID DE TARJETAS DE PROYECTO (SE OCULTA EN ROADMAP Y CLIENTES) */}
-        {(gerenciaActiva !== 'Roadmap Ecosistema' && gerenciaActiva !== 'Clientes Subtek') && (
+        {(gerenciaActiva !== 'Roadmap Ecosistema' && gerenciaActiva !== 'Clientes Subtek' && gerenciaActiva !== 'Weekly Subtek') && (
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-8 pb-20">
             {hipotesisFiltradas.length === 0 ? (
               <div className="col-span-full py-16 text-center text-slate-500 border-2 border-dashed border-slate-700 rounded-xl"><p className="text-lg">No hay proyectos activos aquí. Haz clic en "Nuevo Proyecto".</p></div>
@@ -753,7 +754,7 @@ export default function SubtekDashboard() {
             )}
           </div>
         )}
-        <WeeklyNotes supabase={supabase} responsibles={RESPONSABLES} />
+        {gerenciaActiva === 'Weekly Subtek' && <WeeklyNotes supabase={supabase} responsibles={RESPONSABLES} />}
       </main>
     </div>
   );
