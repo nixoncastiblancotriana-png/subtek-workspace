@@ -1,10 +1,8 @@
 // @ts-nocheck
 "use client";
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import WeeklyNotes from '../components/weekly-notes';
-import { useDashboardConfig } from '../lib/use-dashboard-config';
-import { downloadJSON, snapshotLegacy } from '../lib/dashboard-config';
 import { 
   Download, Plus, Trash2, Users, Link as LinkIcon,
   AlertTriangle, TrendingUp, Info, BarChart3, CheckSquare, X, Calendar, CloudUpload, Map,
@@ -56,23 +54,16 @@ const ORIGEN_CLIENTE = ["Página web", "Referido", "Redes sociales", "Evento emp
 export default function SubtekDashboard() {
   const [hipotesis, setHipotesis] = useState<Hipotesis[]>([]);
   const [clientes, setClientes] = useState<ClienteSubtek[]>([]);
-  const config = useDashboardConfig(supabase);
-  const { total: presupuestoTotalSubtek, mes: mesPpto, anio: anioPpto, roadmap } = config.draft;
+  const [presupuestoTotalSubtek, setPresupuestoTotalSubtek] = useState<number>(0);
+  const [mesPpto, setMesPpto] = useState<string>('Septiembre');
+  const [anioPpto, setAnioPpto] = useState<number>(2026);
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
-  const legacyRequest = useRef(0);
-
-  const [email, setEmail] = useState('nixoncastiblancotriana@gmail.com');
-  const [showAccess, setShowAccess] = useState(false);
-  const [showReview, setShowReview] = useState(false);
-  const [accessBusy, setAccessBusy] = useState(false);
-  const [accessMessage, setAccessMessage] = useState('');
-  const [notice, setNotice] = useState('');
-  useEffect(() => { if (config.uid) setShowAccess(false); }, [config.uid]);
-  const [legacyReady, setLegacyReady] = useState(false);
-  const [legacyConflict, setLegacyConflict] = useState(false);
-  const [legacyMessage, setLegacyMessage] = useState('Proyectos y clientes pendientes de verificar.');
-  useEffect(() => { if (config.uid) void cargarDatosNube(); }, [config.uid]);
-  const [legacyRemote, setLegacyRemote] = useState<{ hipotesis: Hipotesis[]; clientes: ClienteSubtek[] } | null>(null);
+  
+  const [roadmap, setRoadmap] = useState({
+    fase1_cctv: true, fase1_vactor: true, fase1_inspeccion: true,
+    fase2_saas: false, fase2_etiquetador: false, fase2_recomendaciones: false, fase2_vision: false,
+    fase3_predictivo: false, fase3_vision_rt: false, fase3_macp: false
+  });
 
   const [isClient, setIsClient] = useState(false);
   const [datosCargados, setDatosCargados] = useState(false);
@@ -85,97 +76,72 @@ export default function SubtekDashboard() {
   useEffect(() => {
     setIsClient(true);
     try {
-      snapshotLegacy(localStorage);
       const saved = localStorage.getItem('subtek-data-v6');
       if (saved && saved !== '[]') setHipotesis(JSON.parse(saved));
       const savedClientes = localStorage.getItem('subtek-clientes-v6');
       if (savedClientes && savedClientes !== '[]') setClientes(JSON.parse(savedClientes));
       
-    } catch (e) { setLegacyMessage('No se pudieron recuperar los datos locales. Conserva y revisa el respaldo antes de continuar.'); return; }
+      const savedPpto = localStorage.getItem('subtek-ppto-v6');
+      if (savedPpto) setPresupuestoTotalSubtek(Number(savedPpto));
+      const savedMes = localStorage.getItem('subtek-ppto-mes-v6');
+      if (savedMes) setMesPpto(savedMes);
+      const savedAnio = localStorage.getItem('subtek-ppto-anio-v6');
+      if (savedAnio) setAnioPpto(Number(savedAnio));
+      const savedRoadmap = localStorage.getItem('subtek-roadmap-v6');
+      if (savedRoadmap) setRoadmap(JSON.parse(savedRoadmap));
+    } catch (e) { console.error("Error lectura local:", e); }
     
     setDatosCargados(true);
+    cargarDatosNube();
   }, []);
 
   // 2. GUARDADO LOCAL AUTOMÁTICO
   useEffect(() => {
-    if (isClient && datosCargados && legacyReady) {
-      try { localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
+    if (isClient && datosCargados) {
+      localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
       localStorage.setItem('subtek-clientes-v6', JSON.stringify(clientes));
-      } catch (e) { setLegacyMessage('No se pudo conservar la edición local. Exportar respaldo antes de cerrar.'); }
+      localStorage.setItem('subtek-ppto-v6', presupuestoTotalSubtek.toString());
+      localStorage.setItem('subtek-ppto-mes-v6', mesPpto);
+      localStorage.setItem('subtek-ppto-anio-v6', anioPpto.toString());
+      localStorage.setItem('subtek-roadmap-v6', JSON.stringify(roadmap));
     }
-  }, [hipotesis, clientes, isClient, datosCargados, legacyReady]);
+  }, [hipotesis, clientes, presupuestoTotalSubtek, mesPpto, anioPpto, roadmap, isClient, datosCargados]);
 
   // 3. FUNCIONES DE NUBE
   const cargarDatosNube = async () => {
-    const ticket = ++legacyRequest.current;
-    setLegacyReady(false);
     try {
-      const raw = snapshotLegacy(localStorage);
-      const readAll = async (table: string) => {
-        const rows: any[] = [];
-        for (let offset = 0; ; offset += 500) {
-          const { data, error, count } = await supabase.from(table).select('*', { count: 'exact' }).order(table === 'subtek_legacy_archives' ? 'record_id' : 'id').order(table === 'subtek_legacy_archives' ? 'collection' : 'id').range(offset, offset + 499);
-          if (error) throw error;
-          if (!data || count === null) throw new Error('Lectura incompleta.');
-          rows.push(...data);
-          if (rows.length >= count) return rows;
-          if (data.length === 0) throw new Error('Paginación incompleta.');
-        }
-      };
-      const allHip = await readAll('hipotesis');
-      const allCl = await readAll('clientes');
-      const archives = await readAll('subtek_legacy_archives');
-      const hipData = allHip.filter(h => !archives.some(a => a.collection === 'hipotesis' && a.record_id === h.id && a.active));
-      const clData = allCl.filter(c => !archives.some(a => a.collection === 'clientes' && a.record_id === c.id && a.active));
-      if (ticket !== legacyRequest.current) return;
-      const localHip = raw['subtek-data-v6'] === null ? null : JSON.parse(raw['subtek-data-v6']);
-      const localCl = raw['subtek-clientes-v6'] === null ? null : JSON.parse(raw['subtek-clientes-v6']);
-      // Ordenar por ID evita conflictos debidos únicamente al orden de SELECT.
-      const canonical = (v:any):any => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])) : v;
-      const same = (a: any[], b: any[]) => JSON.stringify(canonical([...a].sort((x,y) => x.id.localeCompare(y.id)))) === JSON.stringify(canonical([...b].sort((x,y) => x.id.localeCompare(y.id))));
-      const conflict = (localHip !== null && !same(localHip, hipData)) || (localCl !== null && !same(localCl, clData));
-      setLegacyRemote({ hipotesis: hipData, clientes: clData });
-      setLegacyConflict(conflict);
-      if (!conflict) { setHipotesis(hipData); setClientes(clData); }
-      setLegacyReady(true);
-      setLegacyMessage(conflict ? 'Proyectos/clientes locales difieren de la nube. Guardado y borrado bloqueados hasta revisar; puedes exportar y adoptar la nube.' : 'Proyectos/clientes leídos sin errores.');
-    } catch (error: any) { if (ticket !== legacyRequest.current) return; setLegacyMessage('No se verificaron proyectos/clientes: ' + error.message); }
-  };
+      const { data: hipData } = await supabase.from('hipotesis').select('*');
+      if (hipData && hipData.length > 0) setHipotesis(hipData as Hipotesis[]);
+      
+      const { data: clData } = await supabase.from('clientes').select('*');
+      if (clData && clData.length > 0) setClientes(clData as ClienteSubtek[]);
 
-  const adoptarLegacyNube = () => {
-    if (!legacyReady || !legacyRemote) return;
-    config.exportBackup();
-    downloadJSON({ hipotesis, clientes, nube: legacyRemote }, 'subtek-proyectos-clientes-antes-de-adoptar.json');
-    setHipotesis(legacyRemote.hipotesis); setClientes(legacyRemote.clientes);
-    setLegacyConflict(false); setHayCambiosLocales(false);
-    setLegacyMessage('Se adoptaron proyectos/clientes de la nube. Revisar los archivos exportados para recuperar cambios locales.');
+      const { data: pptoData } = await supabase.from('presupuesto_global').select('total').eq('id', 1).single();
+      if (pptoData) setPresupuestoTotalSubtek(pptoData.total);
+    } catch (error: any) { console.error("Error nube:", error.message); }
   };
 
   const forzarGuardadoNube = async () => {
-    if (!config.uid) { setShowAccess(true); return; }
-    if (isSyncing || config.working) return;
-    if (!legacyReady || !config.ready) { await cargarDatosNube(); const refreshed = await config.load(); setNotice(refreshed ? 'Datos actualizados. Puedes volver a guardar.' : 'No pudimos cargar los datos. Intenta nuevamente.'); return; }
-    if (legacyConflict || config.review || config.conflict) { setShowReview(true); return; }
     setIsSyncing(true);
     try {
-      // La configuración se confirma mediante CAS; nunca hacer upsert del presupuesto antiguo.
-      await config.save();
-      if (!legacyRemote) throw new Error('No hay versión base de proyectos/clientes.');
-      const { data, error } = await supabase.rpc('subtek_save_legacy_dashboard', {
-        p_hip_base: legacyRemote.hipotesis, p_hip_draft: hipotesis,
-        p_clientes_base: legacyRemote.clientes, p_clientes_draft: clientes,
-      });
-      if (error) {
-        if (error.code === '40001') { setLegacyConflict(true); setLegacyReady(false); setLegacyMessage('Conflicto: reintenta la lectura y concilia los cambios. El borrador permanece local.'); }
-        throw error;
+      if (hipotesis.length > 0) {
+        const { error: errorHip } = await supabase.from('hipotesis').upsert(hipotesis);
+        if (errorHip) throw new Error("Error en proyectos: " + errorHip.message);
       }
-      if (!data?.hipotesis || !data?.clientes) throw new Error('Confirmación incompleta.');
-      setLegacyRemote(data); setHipotesis(data.hipotesis); setClientes(data.clientes);
+      if (clientes.length > 0) {
+        const { error: errorCl } = await supabase.from('clientes').upsert(clientes);
+        if (errorCl) throw new Error("Error en clientes: " + errorCl.message);
+      }
+      const { error: errorPpto } = await supabase.from('presupuesto_global').upsert({ id: 1, total: presupuestoTotalSubtek });
+      if (errorPpto) throw new Error("Error en presupuesto: " + errorPpto.message);
+
       setHayCambiosLocales(false);
-      setNotice('Cambios guardados.');
+      alert("¡Sincronización exitosa! Los datos están seguros en la nube de Subtek.");
     } catch (error: any) {
-      setNotice(error.code === '40001' ? 'Hay una versión más reciente. Actualiza los datos antes de guardar.' : 'No se pudo completar el guardado. Tus cambios se conservan en este navegador.');
-    } finally { setIsSyncing(false); }
+      alert("ATENCIÓN: No se pudo guardar en la nube.\nMotivo: " + (error.message || "Error desconocido"));
+    } finally {
+      setIsSyncing(false);
+    }
   };
 
   // 4. FUNCIONES CRM
@@ -194,13 +160,12 @@ export default function SubtekDashboard() {
   };
 
   const confirmarBorradoCliente = async () => {
-    if (!modalBorrarCliente || !legacyReady || legacyConflict || isSyncing) return;
-    try {
-      const { error } = await supabase.rpc('subtek_archive_legacy', { p_collection: 'clientes', p_record_id: modalBorrarCliente });
-      if (error) throw error;
+    if (modalBorrarCliente) {
       setClientes(prev => prev.filter(c => c.id !== modalBorrarCliente));
-      setModalBorrarCliente(null); setHayCambiosLocales(true);
-    } catch (e: any) { alert('No se confirmó el archivo: ' + e.message); }
+      try { await supabase.from('clientes').delete().eq('id', modalBorrarCliente); } catch(e){}
+      setModalBorrarCliente(null);
+      setHayCambiosLocales(true);
+    }
   };
 
   // Manejador del archivo de Cotización
@@ -300,9 +265,9 @@ export default function SubtekDashboard() {
   };
 
   // RESTO DE FUNCIONES
-  const toggleRoadmap = (id: string) => { if (isSyncing) return; config.edit({ roadmap: { ...roadmap, [id]: !roadmap[id] } }); };
-  const guardarPresupuestoTotal = (valor: number) => config.edit({ total: valor });
-  const congelarPresupuestoMensual = () => { alert('Este botón no crea un cierre contable. Guarda la configuración para confirmar total y periodo en el servidor.'); };
+  const toggleRoadmap = (id: string) => { setRoadmap(prev => ({ ...prev, [id]: !prev[id] })); setHayCambiosLocales(true); };
+  const guardarPresupuestoTotal = async (valor: number) => { setPresupuestoTotalSubtek(valor); setHayCambiosLocales(true); };
+  const congelarPresupuestoMensual = () => { setHayCambiosLocales(true); alert(`✅ Presupuesto de ${mesPpto} ${anioPpto} congelado en $${presupuestoTotalSubtek.toLocaleString()}.\n\nNo olvides hacer clic en "¡Guardar en Servidor!".`); };
   
   const agregarHipotesis = () => {
     const nueva: Hipotesis = {
@@ -318,13 +283,7 @@ export default function SubtekDashboard() {
   const toggleSubtarea = (idHip: string, idSub: string) => { setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.map(s => s.id === idSub ? { ...s, completada: !s.completada } : s) } : h)); setHayCambiosLocales(true); };
   const borrarSubtarea = (idHip: string, idSub: string) => { setHipotesis(prev => prev.map(h => h.id === idHip ? { ...h, subtareas: h.subtareas.filter(s => s.id !== idSub) } : h)); setHayCambiosLocales(true); };
   const confirmarBorrado = async () => {
-    if (!modalBorrar || !legacyReady || legacyConflict || isSyncing) return;
-    try {
-      const { error } = await supabase.rpc('subtek_archive_legacy', { p_collection: 'hipotesis', p_record_id: modalBorrar });
-      if (error) throw error;
-      setHipotesis(prev => prev.filter(h => h.id !== modalBorrar));
-      setModalBorrar(null); setHayCambiosLocales(true);
-    } catch (e: any) { alert('No se confirmó el archivo: ' + e.message); }
+    if (modalBorrar) { setHipotesis(prev => prev.filter(h => h.id !== modalBorrar)); try { await supabase.from('hipotesis').delete().eq('id', modalBorrar); } catch(e){} setModalBorrar(null); setHayCambiosLocales(true); }
   };
 
   const RoadmapCard = ({ id, title, subtitle, icon: Icon, state }: { id: string, title: string, subtitle: string, icon: any, state: boolean }) => (
@@ -349,36 +308,15 @@ export default function SubtekDashboard() {
 
   return (
     <div className="min-h-screen flex flex-col bg-subtek-dark text-slate-100 font-sans">
-      {showAccess && !config.uid && <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4" onClick={()=>setShowAccess(false)}>
-        <section role="dialog" aria-modal="true" aria-labelledby="access-title" className="bg-subtek-card border border-subtek-cyan/40 rounded-2xl p-6 max-w-sm w-full shadow-xl" onClick={e=>e.stopPropagation()}>
-          <div className="flex justify-between items-center mb-3"><h2 id="access-title" className="font-bold text-xl">Acceso a Subtek</h2><button aria-label="Cerrar acceso" onClick={()=>setShowAccess(false)}><X size={18}/></button></div>
-          <p className="text-sm text-slate-400 mb-4">Recibe un enlace en tu correo para entrar.</p>
-          <form onSubmit={async e=>{e.preventDefault();if(accessBusy)return; if(email.trim().toLowerCase()!=='nixoncastiblancotriana@gmail.com'){setAccessMessage('Solicita acceso al administrador para este correo.');return;}setAccessBusy(true);setAccessMessage('');try{const {error}=await supabase.auth.signInWithOtp({email:email.trim(),options:{shouldCreateUser:true,emailRedirectTo:window.location.origin}});setAccessMessage(error?'No pudimos enviar el acceso. Intenta nuevamente.':'Revisa tu correo para continuar.');}catch{setAccessMessage('No pudimos enviar el acceso. Intenta nuevamente.');}finally{setAccessBusy(false);}}}>
-            <label htmlFor="access-email" className="text-sm text-slate-300">Correo</label><input id="access-email" type="email" required value={email} onChange={e=>setEmail(e.target.value)} autoComplete="email" className="mt-1 mb-4 w-full bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 outline-none focus:border-subtek-cyan"/>
-            <button disabled={accessBusy} className="w-full bg-subtek-cyan text-black font-bold rounded-lg px-4 py-2 disabled:opacity-50">{accessBusy?'Enviando…':'Recibir acceso por correo'}</button>
-          </form>
-          {accessMessage && <p role="status" className="mt-3 text-sm text-slate-300">{accessMessage}</p>}
-        </section>
-      </div>}
-      {showReview && config.uid && <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[110] flex items-center justify-center p-4">
-        <section role="dialog" aria-modal="true" aria-labelledby="review-title" className="bg-subtek-card border border-subtek-cyan/40 rounded-2xl p-6 max-w-md w-full shadow-xl">
-          <div className="flex justify-between items-center mb-3"><h2 id="review-title" className="font-bold text-xl">Confirmar cambios</h2><button aria-label="Cerrar confirmación" onClick={()=>setShowReview(false)}><X size={18}/></button></div>
-          <p className="text-sm text-slate-400 mb-4">{config.remote || legacyConflict ? 'Hay otra versión de los datos. Tu copia local se conservará como respaldo.' : 'Guardaremos el roadmap y el presupuesto que ves en el tablero.'}</p>
-          <div className="flex flex-wrap gap-3">
-            {(config.remote || legacyConflict) && <button disabled={config.working} className="border border-slate-600 rounded-lg px-4 py-2 text-sm" onClick={()=>{try{if(config.remote)config.adoptCloud();if(legacyConflict)adoptarLegacyNube();setShowReview(false);setNotice('Datos actualizados. Tu copia anterior quedó respaldada.');}catch{setNotice('No se pudieron actualizar los datos. Tus cambios se conservan.');}}}>Usar datos del equipo</button>}
-            {!legacyConflict && <button disabled={config.working} className="bg-subtek-cyan text-black font-bold rounded-lg px-4 py-2 text-sm" onClick={async()=>{try{config.acceptReviewedDraft();await config.save();setShowReview(false);setNotice('Configuración guardada.');}catch{setNotice('No se pudo guardar. Tus cambios se conservan.');}}}>Guardar configuración actual</button>}
-          </div>
-        </section>
-      </div>}
       {/* MODALES DE BORRADO */}
       {modalBorrar && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
           <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
-            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Archivar proyecto</h3>
-            <p className="text-slate-300 mb-6">El proyecto se ocultará del tablero y se conservará completo en la base de datos.</p>
+            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Confirmar Eliminación</h3>
+            <p className="text-slate-300 mb-6">¿Estás seguro de borrar este proyecto? Se perderá permanentemente del sistema.</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalBorrar(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
-              <button onClick={confirmarBorrado} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, archivar</button>
+              <button onClick={confirmarBorrado} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
             </div>
           </div>
         </div>
@@ -387,11 +325,11 @@ export default function SubtekDashboard() {
       {modalBorrarCliente && (
         <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[100] backdrop-blur-sm transition-all duration-300">
           <div className="bg-subtek-card border border-subtek-cyan p-6 rounded-xl max-w-md w-full shadow-[0_0_30px_rgba(0,240,255,0.2)]">
-            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Archivar Prospecto B2B</h3>
-            <p className="text-slate-300 mb-6">El registro se ocultará del tablero; sus datos se conservarán en la base de datos.</p>
+            <h3 className="text-xl font-bold text-white mb-2 flex items-center gap-2"><AlertTriangle className="text-red-500" /> Eliminar Prospecto B2B</h3>
+            <p className="text-slate-300 mb-6">¿Deseas eliminar este registro comercial de la base de datos de Subtek?</p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setModalBorrarCliente(null)} className="px-4 py-2 bg-slate-700 hover:bg-slate-600 rounded transition-all">Cancelar</button>
-              <button onClick={confirmarBorradoCliente} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, archivar</button>
+              <button onClick={confirmarBorradoCliente} className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white rounded transition-all">Sí, Eliminar</button>
             </div>
           </div>
         </div>
@@ -405,9 +343,8 @@ export default function SubtekDashboard() {
             <div className="flex flex-col"><span className="text-xl font-black tracking-widest text-white">SUBTEK</span><span className="text-xs font-semibold tracking-widest text-subtek-cyan uppercase">Plataforma Lean SaaS</span></div>
           </div>
           <div className="flex items-center gap-4">
-            {config.uid ? <button onClick={async()=>{const {error}=await supabase.auth.signOut(); if(error)setNotice('No se pudo cerrar la sesión.');}} className="text-xs text-slate-400 hover:text-white">Salir</button> : <button onClick={()=>setShowAccess(true)} className="text-sm text-subtek-cyan border border-subtek-cyan/30 rounded px-3 py-2 hover:bg-subtek-cyan/10">Acceder</button>}
-            <button onClick={forzarGuardadoNube} disabled={isSyncing || config.working} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
-              <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : 'Guardar cambios'}
+            <button onClick={forzarGuardadoNube} disabled={isSyncing} className={`flex items-center gap-2 px-5 py-2 rounded font-bold shadow-lg transition-all duration-300 hover:scale-105 ${hayCambiosLocales ? 'bg-orange-500 text-white animate-pulse shadow-[0_0_15px_rgba(249,115,22,0.4)]' : 'bg-green-600 text-white shadow-[0_0_10px_rgba(34,197,94,0.3)]'}`}>
+              <CloudUpload size={20} /> {isSyncing ? 'Guardando...' : hayCambiosLocales ? '¡Guardar en Servidor!' : 'Nube Sincronizada'}
             </button>
             {gerenciaActiva === 'Clientes Subtek' ? (
               <button onClick={exportarClientesCSV} className="flex items-center gap-2 bg-subtek-cyan text-black font-bold px-4 py-2 rounded transition-all hover:scale-105 shadow-[0_0_10px_rgba(0,240,255,0.3)]"><Download size={18} /> Exportar CRM (BI)</button>
@@ -430,9 +367,6 @@ export default function SubtekDashboard() {
       </div>
 
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
-        {notice && <div role="status" className="mb-4 rounded-lg border border-subtek-cyan/20 bg-subtek-card px-4 py-3 text-sm text-slate-300 flex justify-between gap-3"><span>{notice}</span><button aria-label="Cerrar aviso" onClick={()=>setNotice('')}><X size={16}/></button></div>}
-
-        <fieldset disabled={isSyncing || !legacyReady} className="min-w-0">
         {/* NAVEGACIÓN */}
         <div className="flex flex-wrap gap-2 mb-8 border-b border-slate-700 pb-2">
           {GERENCIAS.map(g => (
@@ -710,23 +644,23 @@ export default function SubtekDashboard() {
               <div className="flex flex-wrap items-end gap-4 w-full">
                   <div className="flex flex-col gap-1 w-full md:w-auto">
                     <label className="text-xs text-subtek-cyan font-bold uppercase">Mes Operativo</label>
-                    <select className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan h-[42px]" disabled={!config.ready || config.working} value={mesPpto} onChange={(e) => { config.edit({ mes: e.target.value }); }}>
+                    <select className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan h-[42px]" value={mesPpto} onChange={(e) => { setMesPpto(e.target.value); setHayCambiosLocales(true); }}>
                       {MESES.map(m => <option key={m} value={m}>{m}</option>)}
                     </select>
                   </div>
                   <div className="flex flex-col gap-1 w-full md:w-auto">
                     <label className="text-xs text-subtek-cyan font-bold uppercase">Año</label>
-                    <input type="number" className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan w-24 h-[42px]" disabled={!config.ready || config.working} value={anioPpto} onChange={(e) => { config.edit({ anio: Number(e.target.value) }); }} />
+                    <input type="number" className="bg-slate-800 border border-slate-700 rounded p-2 text-white outline-none focus:border-subtek-cyan w-24 h-[42px]" value={anioPpto} onChange={(e) => { setAnioPpto(Number(e.target.value)); setHayCambiosLocales(true); }} />
                   </div>
                   <div className="flex flex-col gap-1 flex-1 min-w-[200px]">
                     <label className="text-xs text-subtek-cyan font-bold uppercase">Fondo Total Disponible (Subtek) ($)</label>
-                    <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan text-white text-lg font-bold w-full h-[42px]" disabled={!config.ready || config.working} value={presupuestoTotalSubtek || ''} onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} />
+                    <input type="number" placeholder="Ej: 50000" className="bg-slate-800 border border-slate-700 rounded p-2 outline-none focus:border-subtek-cyan text-white text-lg font-bold w-full h-[42px]" value={presupuestoTotalSubtek || ''} onChange={(e) => guardarPresupuestoTotal(Number(e.target.value))} />
                   </div>
                   <button onClick={congelarPresupuestoMensual} className="bg-subtek-cyan text-black font-black px-6 py-2 rounded h-[42px] hover:scale-105 transition-all shadow-[0_0_10px_rgba(0,240,255,0.3)] whitespace-nowrap">
-                    Revisar Ppto
+                    Congelar Ppto
                   </button>
               </div>
-              <p className="text-[10px] text-slate-500 mt-3">* Total y periodo se guardan juntos en la configuración compartida. No se crean cierres contables ni presupuestos históricos mensuales.</p>
+              <p className="text-[10px] text-slate-500 mt-3">* Al congelar el presupuesto, fijas este valor como la meta financiera del periodo. Recuerda subir los cambios a la nube con el botón superior.</p>
             </div>
 
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
@@ -819,11 +753,9 @@ export default function SubtekDashboard() {
             )}
           </div>
         )}
-        </fieldset>
-        <WeeklyNotes supabase={supabase} uid={config.uid} responsibles={RESPONSABLES} />
+        <WeeklyNotes supabase={supabase} responsibles={RESPONSABLES} />
       </main>
     </div>
   );
 }
-
 

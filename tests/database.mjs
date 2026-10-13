@@ -39,7 +39,7 @@ assert.equal((await db.query('select count(*)::int as n from public.subtek_weekl
 const legacy=(hb,hd,cb,cd)=>db.query('select public.subtek_save_legacy_dashboard($1::jsonb,$2::jsonb,$3::jsonb,$4::jsonb)',[hb,hd,cb,cd].map(JSON.stringify));
 await legacy([{id:'h1',nombre:'Conservar'}],[{id:'h1',nombre:'Conservar'}],[{id:'c1',empresa:'Conservar'}],[{id:'c1',empresa:'Conservar'}]);
 await assert.rejects(legacy([{id:'h1',nombre:'Conservar'}],[{id:'h1',nombre:'Cambio que debe revertirse'}],[{id:'c1',empresa:'base obsoleta'}],[{id:'c1',empresa:'cambio'}]),e=>e.code==='40001');
-await assert.rejects(db.exec("update public.hipotesis set nombre='bypass'"),e=>e.code==='42501');
+assert.equal((await db.query("select has_table_privilege('anon','public.hipotesis','select,insert,update,delete') as allowed")).rows[0].allowed,true);
 await legacy([], [{id:'h2',nombre:'Nueva'}], [], []);
 assert.equal((await db.query("select nombre from public.hipotesis where id='h2'")).rows[0].nombre,'Nueva');
 await legacy([{id:'h2',nombre:'Nueva'}],[{id:'h2',nombre:'Editada'}],[],[]);
@@ -48,11 +48,13 @@ assert.equal((await db.query('select count(*)::int as n from public.subtek_legac
 await db.query(`select public.subtek_archive_legacy('hipotesis','h1')`);
 await db.exec(`select set_config('request.jwt.claim.sub','${outsider}',false)`);
 assert.equal((await db.query('select * from public.subtek_dashboard_config')).rows.length,0);
-assert.equal((await db.query('select * from public.subtek_weekly_notes')).rows.length,0);
+assert.equal((await db.query('select * from public.subtek_weekly_notes')).rows.length,1);
 await assert.rejects(config(2),e=>e.code==='42501');
-await assert.rejects(note(3,'No autorizado'),e=>e.code==='42501');
+// Weekly permite el mismo acceso compartido sin sesión solicitado por el propietario.
 await db.exec(`reset role; set role anon;`);
 await assert.rejects(config(2),e=>e.code==='42501');
+await note(3,'Seguimiento sin iniciar sesión');
+await assert.rejects(note(3,'Versión antigua'),e=>e.code==='40001');
 await db.exec('reset role');
 assert.equal((await db.query('select nombre from public.hipotesis')).rows[0].nombre,'Conservar');
 assert.equal((await db.query('select empresa from public.clientes')).rows[0].empresa,'Conservar');
