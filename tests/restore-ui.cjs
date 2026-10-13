@@ -1,0 +1,23 @@
+const { chromium }=require('playwright');const assert=require('node:assert/strict');
+(async()=>{
+ const browser=await chromium.launch({headless:true,...(process.env.SUBTEK_CHROMIUM_PATH?{executablePath:process.env.SUBTEK_CHROMIUM_PATH,args:['--no-sandbox','--disable-dev-shm-usage','--disable-gpu','--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader']}:{})});
+ const ctx=await browser.newContext();let writes=0,notes=[];
+ const hip=Array.from({length:7},(_,i)=>({id:'h'+i,gerencia:'Gerencia General',nombre:'Proyecto '+i,responsable:'Nixon',presupuestoAsignado:0,presupuestoGastado:0,fechaInicio:'',fechaLimite:'',avance:0,estatus:'Sin iniciar',veredicto:'Pendiente',observaciones:'',evidencia:'',subtareas:[]}));
+ await ctx.route('https://fzjovmnudqbwukyzsznc.supabase.co/**',async route=>{
+  const req=route.request(),url=new URL(req.url());let body=[];
+  if(url.pathname.endsWith('/hipotesis'))body=hip;
+  if(url.pathname.endsWith('/clientes'))body=[];
+  if(url.pathname.endsWith('/presupuesto_global'))body={total:16000000};
+  if(url.pathname.endsWith('/subtek_weekly_notes'))body=notes;
+  if(url.pathname.endsWith('/rpc/subtek_save_weekly_note')){writes++;const p=req.postDataJSON();body={id:p.p_id,task:p.p_task,responsible:p.p_responsible,due_date:p.p_due_date,week_start:p.p_week_start,status:p.p_status,notes:p.p_notes,archived:p.p_archived,revision:1};notes.push(body);}
+  await route.fulfill({status:200,headers:{'content-type':'application/json','access-control-allow-origin':'*','access-control-expose-headers':'content-range','content-range':`0-0/${Array.isArray(body)?body.length:1}`},body:JSON.stringify(body)});
+ });
+ const page=await ctx.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));await page.goto('http://127.0.0.1:3100');
+ await page.getByRole('heading',{name:'Weekly Subtek',exact:true}).waitFor();
+ await page.waitForFunction(()=>Array.from(document.querySelectorAll('input[type=number]')).some(e=>e.value==='16000000'));
+ assert.equal(await page.getByRole('button',{name:'Acceder',exact:true}).count(),0);assert.equal(await page.getByRole('button',{name:'Enviar enlace de acceso',exact:true}).count(),0);
+ assert.equal(writes,0);
+ await page.getByRole('button',{name:'Nuevo compromiso',exact:true}).click();await page.getByLabel('Tarea o acuerdo').fill('Revisar responsabilidades');await page.getByLabel('Responsable del compromiso').fill('Nixon');await page.getByRole('button',{name:'Guardar compromiso',exact:true}).click();await page.getByRole('heading',{name:'Revisar responsabilidades',exact:true}).waitFor();
+ assert.equal(writes,1);assert.equal(errors.length,0,errors.join('\n'));
+ console.log('PASS: app original sin acceso, presupuesto y proyectos visibles, Weekly crea compromisos sin sesión, sin escrituras al cargar y sin errores de navegador.');await browser.close();
+})().catch(e=>{console.error(e.message);process.exit(1)});

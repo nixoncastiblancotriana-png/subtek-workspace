@@ -18,7 +18,8 @@ function monday(date: string) {
   if (Number.isNaN(d.getTime())) return '';
   d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7); return d.toISOString().slice(0,10);
 }
-export default function WeeklyNotes({ supabase, uid, responsibles }: { supabase: SupabaseClient; uid: string | null; responsibles: string[] }) {
+export default function WeeklyNotes({ supabase, responsibles }: { supabase: SupabaseClient; responsibles: string[] }) {
+  const uid = 'shared-workspace'; // Namespace de borradores locales, no identidad ni credencial.
   const [week, setWeek] = useState('');
   const [notes, setNotes] = useState<Note[]>([]);
   const [draft, setDraft] = useState<Note | null>(null);
@@ -27,7 +28,7 @@ export default function WeeklyNotes({ supabase, uid, responsibles }: { supabase:
   const request = useRef(0);
   const [busy, setBusy] = useState(false);
   const lock = useRef(false);
-  const [message, setMessage] = useState('Inicia sesión para ver los compromisos del equipo.');
+  const [message, setMessage] = useState('Organiza los compromisos de la semana.');
   const [filter, setFilter] = useState('');
   const [responsible, setResponsible] = useState('Todos');
   const [archived, setArchived] = useState(false);
@@ -161,7 +162,7 @@ export default function WeeklyNotes({ supabase, uid, responsibles }: { supabase:
         </fieldset>
         {conflict && <div className="p-3 border border-amber-500/40 rounded text-sm space-y-2"><p className="text-amber-400">La nota cambió en otro dispositivo. El borrador se conserva.</p><pre className="text-xs overflow-auto">{JSON.stringify({ borrador:draft, servidor:conflict },null,2)}</pre><button onClick={()=>{backupDraft(conflict);safeChange(conflict);setConflict(null);}} className="text-subtek-cyan">Exportar y abrir la versión del servidor para conciliar</button></div>}
       </div>}
-      {shown.length===0 ? <div className="p-10 border border-dashed border-slate-700 rounded-xl text-center text-slate-500"><Calendar className="mx-auto mb-3 text-slate-600" size={30}/><p>{uid?'No hay compromisos con estos filtros.':'Inicia sesión para consultar la bitácora compartida.'}</p></div> : <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{shown.map(n=>{
+      {shown.length===0 ? <div className="p-10 border border-dashed border-slate-700 rounded-xl text-center text-slate-500"><Calendar className="mx-auto mb-3 text-slate-600" size={30}/><p>{'No hay compromisos con estos filtros.'}</p></div> : <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-4">{shown.map(n=>{
         const color = n.status==='Completada'?'text-emerald-400 bg-emerald-950/40 border-emerald-500/30':n.status==='Bloqueada'?'text-red-400 bg-red-950/40 border-red-500/30':n.status==='En curso'?'text-subtek-cyan bg-cyan-950/40 border-cyan-500/30':'text-amber-400 bg-amber-950/40 border-amber-500/30';
         return <article key={n.id} className="rounded-xl border border-slate-700 bg-slate-950/30 p-5 flex flex-col gap-3 hover:border-subtek-cyan/40 transition-colors"><div className="flex justify-between gap-2"><span className={'text-xs px-2 py-1 rounded-full border '+color}>{n.status}</span><span className="text-xs text-slate-500">v{n.revision}</span></div><h3 className="font-bold text-lg break-words">{n.task}</h3><p className="text-sm text-subtek-cyan">{n.responsible}</p><p className="flex gap-2 text-xs text-slate-400"><Calendar size={14}/>{n.due_date}{n.due_date<dateToday()&&n.status!=='Completada'&&<span className="text-red-400">Vencida</span>}</p><p className="text-sm whitespace-pre-wrap break-words text-slate-300 line-clamp-4 flex-1">{n.notes||'Sin notas de seguimiento.'}</p><div className="flex justify-between border-t border-slate-800 pt-3"><button className="text-sm text-subtek-cyan disabled:opacity-40" disabled={busy||!!draft} onClick={()=>{setConflict(null);setHistory(null);safeChange(n);}}>Abrir / editar</button><button className="text-xs text-slate-400 flex gap-1" onClick={()=>void loadHistory(n)}><History size={14}/> Historial</button></div></article>;
       })}</div>}
