@@ -1,16 +1,14 @@
-# Producción · 13 octubre 2026
+# Producción restaurada · 13 octubre 2026
 
 URL: https://subtek-workspace-gold.vercel.app/
-Proyecto Supabase: fzjovmnudqbwukyzsznc (subtek-workspace).
+Proyecto Supabase: fzjovmnudqbwukyzsznc.
 
-- Las cuatro migraciones se aplicaron y registraron. Los nombres y timestamps de este repositorio coinciden con el historial remoto.
-- La propuesta #1 se fusionó en main, commit 4b9ddc8557f32540f3566aee53775a19017e667d; Vercel confirmó el despliegue de producción.
-- Copias privadas de las tres tablas originales, sin acceso público. Las tablas mantienen exactamente su contenido: 7 proyectos, 7 clientes y 1 presupuesto. Las huellas completas antes/después coinciden.
-- RLS habilitado en todas las tablas públicas del dashboard; escritura directa del navegador bloqueada. Cambios mediante RPC con autorización y concurrencia.
-- Correo inicial autorizado por el usuario: nixoncastiblancotriana@gmail.com. Supabase Auth exige verificar el correo; la membresía se crea después de verificarlo. No se enviaron correos de prueba ni se verificó la bandeja del propietario.
-- El roadmap y el periodo no se inventan en BD: el usuario debe revisar y aprobar la importación local inicial. El total existente se conserva y se muestra como referencia.
-- Weekly nuevo, inicialmente vacío; crear y editar compromisos después de iniciar sesión.
+El propietario autorizó explícitamente restaurar el acceso original sin inicio de sesión. La aplicación vuelve al código original; en app/page.tsx únicamente se añaden el import y el componente Weekly al final. No hay acceso por correo, panel de transición ni otras modificaciones a las secciones originales.
 
-Comprobaciones: TypeScript/build, PostgreSQL aislado, Chromium desktop/móvil, tablas y permisos reales, integridad pre/post y estado Vercel. El asesor de seguridad no reporta errores ni advertencias; solo información esperada sobre RLS sin políticas en copias privadas y allowlist, que están deliberadamente cerradas.
+La migración restore_original_access_and_weekly se aplicó (versión 20261013224820). Las tres tablas existentes vuelven al modelo de lectura, creación, edición y borrado sin sesión usado originalmente. El Weekly es compartido sin sesión: lectura con RLS y escritura mediante RPC validada con control de revisión e historial.
 
-El bloqueo inicial de revisión automática se resolvió con la autorización posterior del propietario para publicar y completar los cambios de acceso descritos.
+Las 7 hipótesis, los 7 clientes y el presupuesto de 16000000 permanecen idénticos a las copias anteriores. No se borraron ni alteraron registros durante la restauración. Comprobación adicional por REST sin JWT: datos accesibles con la clave publicable del cliente.
+
+Propuesta #2 fusionada; Vercel publica main. Las tablas y copias adicionales de la primera intervención se conservan para evitar eliminar datos; la aplicación original ya no usa el flujo de configuración compartida ni Auth.
+
+Pruebas: compilación, PostgreSQL aislado con restauración, navegador simulado sin sesión y comprobación de acceso REST real. El acceso público es una decisión explícita del propietario, no una certificación de privacidad del contenido publicado.

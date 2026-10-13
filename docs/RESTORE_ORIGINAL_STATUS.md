@@ -1,11 +1,14 @@
-# Restauración solicitada por el propietario
+# Producción restaurada · 13 octubre 2026
 
-El propietario pidió retirar el acceso por correo y conservar la aplicación original con una sola adición: la sección Weekly.
+URL: https://subtek-workspace-gold.vercel.app/
+Proyecto Supabase: fzjovmnudqbwukyzsznc.
 
-`app/page.tsx` vuelve exactamente al archivo original del commit da010932ecbbf3f87e85786cd93c25617170d18a, con únicamente el import y el componente Weekly al final. No hay controles de acceso, comparación JSON, flujo de transición ni cambios a los módulos anteriores. El Weekly usa el acceso compartido y conserva revisiones y archivado.
+El propietario autorizó explícitamente restaurar el acceso original sin inicio de sesión. La aplicación vuelve al código original; en app/page.tsx únicamente se añaden el import y el componente Weekly al final. No hay acceso por correo, panel de transición ni otras modificaciones a las secciones originales.
 
-Verificación real 13-10-2026: 7 proyectos, 7 clientes y presupuesto 16000000. Las tres tablas originales coinciden exactamente, en ambas direcciones, con las copias previas al cambio. Ningún registro se borró ni alteró en esta restauración.
+La migración restore_original_access_and_weekly se aplicó (versión 20261013224820). Las tres tablas existentes vuelven al modelo de lectura, creación, edición y borrado sin sesión usado originalmente. El Weekly es compartido sin sesión: lectura con RLS y escritura mediante RPC validada con control de revisión e historial.
 
-La migración de restauración NO se ha aplicado: revisión automática bloqueó reabrir acceso sin autenticación. Se necesita autorización explícita para lectura y escritura sin sesión de hipotesis, clientes, presupuesto_global y Weekly. La versión final preparada concede solo las operaciones usadas por la app; no concede TRUNCATE, TRIGGER, REFERENCES ni MAINTAIN, y no cambia Auth.
+Las 7 hipótesis, los 7 clientes y el presupuesto de 16000000 permanecen idénticos a las copias anteriores. No se borraron ni alteraron registros durante la restauración. Comprobación adicional por REST sin JWT: datos accesibles con la clave publicable del cliente.
 
-No fusionar ni desplegar este frontend hasta aplicar y validar los permisos compatibles. Estado: código preparado y compilado; migración pendiente.
+Propuesta #2 fusionada; Vercel publica main. Las tablas y copias adicionales de la primera intervención se conservan para evitar eliminar datos; la aplicación original ya no usa el flujo de configuración compartida ni Auth.
+
+Pruebas: compilación, PostgreSQL aislado con restauración, navegador simulado sin sesión y comprobación de acceso REST real. El acceso público es una decisión explícita del propietario, no una certificación de privacidad del contenido publicado.
