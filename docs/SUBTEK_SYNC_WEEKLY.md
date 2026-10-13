@@ -3,7 +3,7 @@
 Implementación propuesta sobre `nixoncastiblancotriana-png/subtek-workspace`, commit
 `da010932ecbbf3f87e85786cd93c25617170d18a` (main inspeccionado el 13-10-2026).
 El adjunto «Texto pegado.txt» coincide con ese archivo salvo una línea en blanco final.
-Cambios preparados en la propuesta #1 de GitHub. Las primeras dos migraciones ya están aplicadas en Supabase y se verificó que las tablas originales permanecen idénticas. Las otras dos migraciones y el despliegue productivo están pendientes de autorización explícita por bloqueo de la revisión automática. Consultar docs/DEPLOYMENT_STATUS.md.
+Publicado en producción tras autorización explícita del propietario. Las cuatro migraciones están aplicadas en Supabase y las tres tablas originales permanecen idénticas a sus respaldos. Consultar docs/DEPLOYMENT_STATUS.md.
 
 ## Confirmado en el código
 
@@ -179,7 +179,7 @@ local en puerto 3100 y ejecutar `node tests/ui.cjs`. El test prepara usuarios/da
 El archivo original conserva `@ts-nocheck`; los módulos nuevos se comprueban con TypeScript.
 Next.js y demás dependencias base se mantienen para limitar el cambio. La actualización de
 Next.js 14.2.3 a una versión mantenida requiere una tarea aparte antes de un despliegue público.
-Se verificó el esquema real y el estado RLS actual, las copias y las dos primeras migraciones; SMTP end-to-end y los dos cambios restantes de permisos/Auth siguen pendientes. Realtime no se usa.
+Se verificaron el esquema real, RLS, las copias y las cuatro migraciones. La recepción de correo y la verificación personal requieren que el propietario use su buzón. Realtime no se usa.
 La sincronización es por comprobación al enfocar y cada 30 segundos, con guardado explícito;
 no se configura Supabase Realtime ni se publican borradores al perder conectividad.
 
@@ -191,4 +191,4 @@ no se configura Supabase Realtime ni se publican borradores al perder conectivid
 - Lectura de fila opcional: https://supabase.com/docs/reference/javascript/using-modifiers-maybesingle
 
 
-El acceso permite registrar el correo inicial autorizado, lo verifica mediante Supabase Auth y el trigger de autorización pendiente añade su membresía. Si el enlace de correo usa una redirección diferente, la interfaz permite validarlo directamente con Supabase. No se publica ningún token en GitHub.
+El acceso permite registrar el correo inicial autorizado, lo verifica mediante Supabase Auth y el trigger de autorización añade su membresía. Si el enlace de correo usa una redirección diferente, la interfaz permite validarlo directamente con Supabase. No se publica ningún token en GitHub.
