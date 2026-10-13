@@ -1,6 +1,18 @@
 -- Aditiva. No toca hipotesis, clientes ni presupuesto_global. No siembra defaults.
 -- Aplicar una sola vez, después del preflight y del backup, usando el dueño de BD.
 begin;
+create schema subtek_private;
+revoke all on schema subtek_private from public,anon,authenticated;
+grant usage on schema subtek_private to authenticated;
+lock table public.hipotesis,public.clientes,public.presupuesto_global in share mode;
+create table subtek_private.hipotesis_before_20261013 as table public.hipotesis;
+create table subtek_private.clientes_before_20261013 as table public.clientes;
+create table subtek_private.presupuesto_before_20261013 as table public.presupuesto_global;
+alter table subtek_private.hipotesis_before_20261013 enable row level security;
+alter table subtek_private.clientes_before_20261013 enable row level security;
+alter table subtek_private.presupuesto_before_20261013 enable row level security;
+revoke all on all tables in schema subtek_private from public,anon,authenticated;
+
 create table public.subtek_config_members (
   user_id uuid primary key references auth.users(id) on delete cascade
 );
@@ -34,7 +46,7 @@ create policy config_member_read on public.subtek_dashboard_config for select to
 create policy history_member_read on public.subtek_dashboard_config_history for select to authenticated
   using (exists (select 1 from public.subtek_config_members where user_id = (select auth.uid())));
 
-create function public.subtek_save_dashboard_config(
+create function subtek_private.subtek_save_dashboard_config(
   p_expected_revision integer, p_roadmap jsonb, p_total numeric, p_mes text, p_anio integer
 ) returns public.subtek_dashboard_config
 language plpgsql security definer set search_path = '' as $$
@@ -73,6 +85,10 @@ begin
   return result;
 end;
 $$;
-revoke all on function public.subtek_save_dashboard_config(integer,jsonb,numeric,text,integer) from public, anon, authenticated;
+revoke all on function subtek_private.subtek_save_dashboard_config(integer,jsonb,numeric,text,integer) from public, anon, authenticated;
+grant execute on function subtek_private.subtek_save_dashboard_config(integer,jsonb,numeric,text,integer) to authenticated;
+create function public.subtek_save_dashboard_config(p_expected_revision integer, p_roadmap jsonb, p_total numeric, p_mes text, p_anio integer) returns public.subtek_dashboard_config
+language sql security invoker set search_path = '' as $$ select subtek_private.subtek_save_dashboard_config(p_expected_revision,p_roadmap,p_total,p_mes,p_anio); $$;
+revoke all on function public.subtek_save_dashboard_config(integer,jsonb,numeric,text,integer) from public,anon,authenticated;
 grant execute on function public.subtek_save_dashboard_config(integer,jsonb,numeric,text,integer) to authenticated;
 commit;

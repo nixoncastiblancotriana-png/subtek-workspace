@@ -26,7 +26,7 @@ revoke all on public.subtek_legacy_history from public,anon,authenticated;
 grant select on public.subtek_legacy_history to authenticated;
 create policy legacy_history_member_read on public.subtek_legacy_history for select to authenticated
   using(exists(select 1 from public.subtek_config_members where user_id=(select auth.uid())));
-create function public._subtek_apply_legacy(p_table text,p_base jsonb,p_draft jsonb)
+create function subtek_private._subtek_apply_legacy(p_table text,p_base jsonb,p_draft jsonb)
 returns jsonb language plpgsql set search_path = '' as $$
 declare
   item jsonb; expected jsonb; actual jsonb; saved jsonb;
@@ -75,7 +75,7 @@ begin
   return result;
 end;
 $$;
-create function public.subtek_save_legacy_dashboard(p_hip_base jsonb,p_hip_draft jsonb,p_clientes_base jsonb,p_clientes_draft jsonb)
+create function subtek_private.subtek_save_legacy_dashboard(p_hip_base jsonb,p_hip_draft jsonb,p_clientes_base jsonb,p_clientes_draft jsonb)
 returns jsonb language plpgsql security definer set search_path = '' as $$
 declare hip jsonb; cl jsonb;
 begin
@@ -83,16 +83,20 @@ begin
     raise exception 'No autorizado' using errcode='42501';
   end if;
   perform pg_advisory_xact_lock(hashtext('subtek_legacy_dashboard'));
-  hip := public._subtek_apply_legacy('hipotesis',p_hip_base,p_hip_draft);
-  cl := public._subtek_apply_legacy('clientes',p_clientes_base,p_clientes_draft);
+  hip := subtek_private._subtek_apply_legacy('hipotesis',p_hip_base,p_hip_draft);
+  cl := subtek_private._subtek_apply_legacy('clientes',p_clientes_base,p_clientes_draft);
   return jsonb_build_object('hipotesis',hip,'clientes',cl);
 exception when unique_violation then raise exception 'Conflicto de ID existente' using errcode='40001';
 end;
 $$;
-revoke all on function public._subtek_apply_legacy(text,jsonb,jsonb) from public,anon,authenticated;
-revoke all on function public.subtek_save_legacy_dashboard(jsonb,jsonb,jsonb,jsonb) from public,anon,authenticated;
-grant execute on function public.subtek_save_legacy_dashboard(jsonb,jsonb,jsonb,jsonb) to authenticated;
+revoke all on function subtek_private._subtek_apply_legacy(text,jsonb,jsonb) from public,anon,authenticated;
+revoke all on function subtek_private.subtek_save_legacy_dashboard(jsonb,jsonb,jsonb,jsonb) from public,anon,authenticated;
+grant execute on function subtek_private.subtek_save_legacy_dashboard(jsonb,jsonb,jsonb,jsonb) to authenticated;
 -- Desactiva escrituras antiguas que eludirían el control de concurrencia. No cambia filas ni políticas SELECT.
 revoke insert,update,delete,truncate,references,trigger on public.hipotesis,public.clientes from public,anon,authenticated;
 revoke insert,update,delete on public.presupuesto_global from public,anon,authenticated;
+create function public.subtek_save_legacy_dashboard(p_hip_base jsonb,p_hip_draft jsonb,p_clientes_base jsonb,p_clientes_draft jsonb) returns jsonb
+language sql security invoker set search_path = '' as $$ select subtek_private.subtek_save_legacy_dashboard(p_hip_base,p_hip_draft,p_clientes_base,p_clientes_draft); $$;
+revoke all on function public.subtek_save_legacy_dashboard(jsonb,jsonb,jsonb,jsonb) from public,anon,authenticated;
+grant execute on function public.subtek_save_legacy_dashboard(jsonb,jsonb,jsonb,jsonb) to authenticated;
 commit;

@@ -3,7 +3,7 @@
 Implementación propuesta sobre `nixoncastiblancotriana-png/subtek-workspace`, commit
 `da010932ecbbf3f87e85786cd93c25617170d18a` (main inspeccionado el 13-10-2026).
 El adjunto «Texto pegado.txt» coincide con ese archivo salvo una línea en blanco final.
-Los cambios se entregan mediante una rama y pull request. No se han aplicado migraciones ni modificaciones en Supabase real.
+Cambios preparados en la propuesta #1 de GitHub. Las primeras dos migraciones ya están aplicadas en Supabase y se verificó que las tablas originales permanecen idénticas. Las otras dos migraciones y el despliegue productivo están pendientes de autorización explícita por bloqueo de la revisión automática. Consultar docs/DEPLOYMENT_STATUS.md.
 
 ## Confirmado en el código
 
@@ -32,7 +32,7 @@ que el esquema coincida o que el despliegue ejecute exactamente este commit.
 - `components/weekly-notes.tsx`: tarjetas oscuras con acentos cian, semana, responsable,
   fecha compromiso, tarea, seguimiento, estados, filtros, búsqueda, exportación, archivado
   y versiones. Cada nota se guarda de forma explícita e independiente.
-- Tres migraciones aditivas; consultas de preflight; pruebas de BD y de interfaz aislada.
+- Cuatro migraciones; consultas de preflight; pruebas de BD y de interfaz aislada.
 
 `subtek_dashboard_config` almacena **total + mes + año + roadmap** en una fila compartida id 1.
 Se usa una configuración de todo Subtek, coherente con el singleton del código original.
@@ -75,7 +75,7 @@ si la segunda falla, la primera puede estar confirmada y el mensaje indica guard
    resolverlos explícitamente después de revisar el preflight; la revocación de tabla
    no garantiza retirar todos los permisos de columna. Comprobar DML denegado en staging.
 4. Confirmar Supabase Auth por correo y SMTP, usuarios existentes y URL de redirección
-   autorizada del sitio (y localhost para staging). El acceso usa `shouldCreateUser:false`:
+   autorizada del sitio (y localhost para staging). El acceso usa `shouldCreateUser:true`:
    crear/invitar usuarios desde administración y añadir sus UUID a la membresía.
 5. Confirmar que no existen objetos nuevos con los mismos nombres. Las migraciones fallan
    si existen; no usar `IF NOT EXISTS` para esconder un esquema incompatible.
@@ -115,7 +115,7 @@ const a=document.createElement('a');a.href=url;a.download='subtek-v6-respaldo.js
    no hay forma segura de decidir cuál copia local es la más reciente. Elegir y documentar
    los diez estados (true y false), el total y el periodo. No iniciar con defaults de un PC nuevo.
 4. En **staging**, aplicar migraciones 001, 002 y 003 en ese orden. Ejecutar pruebas de acceso,
-   tipos y concurrencia. Las tablas existentes no cambian de estructura ni de contenido.
+   tipos y concurrencia. Las tablas existentes no cambian de estructura ni de contenido; sus permisos se restringen y se activa RLS al completar el paso de acceso autorizado.
    003 cambia permisos de escritura de los clientes: revisar consumidores antes de aplicarla.
 5. Preparar los archivos nuevos en una rama; conservar `public/logo.jpg` y `public/subi.jpg`.
    Ejecutar `npm ci` (o `npm install` si no se adopta el lock), `npx tsc --noEmit`, `npm run build`.
@@ -179,7 +179,7 @@ local en puerto 3100 y ejecutar `node tests/ui.cjs`. El test prepara usuarios/da
 El archivo original conserva `@ts-nocheck`; los módulos nuevos se comprueban con TypeScript.
 Next.js y demás dependencias base se mantienen para limitar el cambio. La actualización de
 Next.js 14.2.3 a una versión mantenida requiere una tarea aparte antes de un despliegue público.
-No se ha validado SMTP, RLS real, esquema real, triggers reales, Realtime, ni despliegue.
+Se verificó el esquema real y el estado RLS actual, las copias y las dos primeras migraciones; SMTP end-to-end y los dos cambios restantes de permisos/Auth siguen pendientes. Realtime no se usa.
 La sincronización es por comprobación al enfocar y cada 30 segundos, con guardado explícito;
 no se configura Supabase Realtime ni se publican borradores al perder conectividad.
 
@@ -189,3 +189,6 @@ no se configura Supabase Realtime ni se publican borradores al perder conectivid
 - Funciones y permisos: https://supabase.com/docs/guides/database/functions
 - Auth y RLS: https://supabase.com/docs/guides/database/postgres/row-level-security
 - Lectura de fila opcional: https://supabase.com/docs/reference/javascript/using-modifiers-maybesingle
+
+
+El acceso permite registrar el correo inicial autorizado, lo verifica mediante Supabase Auth y el trigger de autorización pendiente añade su membresía. Si el enlace de correo usa una redirección diferente, la interfaz permite validarlo directamente con Supabase. No se publica ningún token en GitHub.

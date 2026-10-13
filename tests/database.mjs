@@ -1,18 +1,18 @@
 import { PGlite } from '@electric-sql/pglite';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const db = new PGlite();
 const member='11111111-1111-4111-8111-111111111111', outsider='22222222-2222-4222-8222-222222222222';
 await db.exec(`create role anon; create role authenticated; create schema auth;
-create table auth.users(id uuid primary key);
+create table auth.users(id uuid primary key,email text,email_confirmed_at timestamptz);
 create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
 grant usage on schema auth to authenticated; grant execute on function auth.uid() to authenticated;
-insert into auth.users values('${member}'),('${outsider}');
+insert into auth.users(id) values('${member}'),('${outsider}');
 create table public.hipotesis(id text primary key, nombre text); insert into public.hipotesis values('h1','Conservar');
 create table public.clientes(id text primary key, empresa text); insert into public.clientes values('c1','Conservar');
 create table public.presupuesto_global(id integer primary key,total numeric); insert into public.presupuesto_global values(1,800);
 grant select on public.hipotesis,public.clientes,public.presupuesto_global to authenticated;`);
-for(const file of ['202610130001_dashboard_config.sql','202610130002_weekly_and_archives.sql','202610130003_legacy_safe_save.sql']) {
+for(const file of (await readdir(new URL('../supabase/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort()) {
  await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
 }
 await db.exec(`insert into public.subtek_config_members values('${member}'); set role authenticated; select set_config('request.jwt.claim.sub','${member}',false);`);

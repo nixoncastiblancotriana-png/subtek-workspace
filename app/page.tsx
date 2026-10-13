@@ -61,7 +61,8 @@ export default function SubtekDashboard() {
   const [gerenciaActiva, setGerenciaActiva] = useState<Gerencia>('Dashboard Global');
   const legacyRequest = useRef(0);
   useEffect(() => { setReviewed(false); }, [config.review, config.remote?.revision]);
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('nixoncastiblancotriana@gmail.com');
+  const [loginLink, setLoginLink] = useState('');
   const [reviewed, setReviewed] = useState(false);
   const [legacyReady, setLegacyReady] = useState(false);
   const [legacyConflict, setLegacyConflict] = useState(false);
@@ -94,12 +95,12 @@ export default function SubtekDashboard() {
 
   // 2. GUARDADO LOCAL AUTOMÁTICO
   useEffect(() => {
-    if (isClient && datosCargados) {
+    if (isClient && datosCargados && legacyReady) {
       try { localStorage.setItem('subtek-data-v6', JSON.stringify(hipotesis));
       localStorage.setItem('subtek-clientes-v6', JSON.stringify(clientes));
       } catch (e) { setLegacyMessage('No se pudo conservar la edición local. Exportar respaldo antes de cerrar.'); }
     }
-  }, [hipotesis, clientes, isClient, datosCargados]);
+  }, [hipotesis, clientes, isClient, datosCargados, legacyReady]);
 
   // 3. FUNCIONES DE NUBE
   const cargarDatosNube = async () => {
@@ -127,7 +128,8 @@ export default function SubtekDashboard() {
       const localHip = raw['subtek-data-v6'] === null ? null : JSON.parse(raw['subtek-data-v6']);
       const localCl = raw['subtek-clientes-v6'] === null ? null : JSON.parse(raw['subtek-clientes-v6']);
       // Ordenar por ID evita conflictos debidos únicamente al orden de SELECT.
-      const same = (a: any[], b: any[]) => JSON.stringify([...a].sort((x,y) => x.id.localeCompare(y.id))) === JSON.stringify([...b].sort((x,y) => x.id.localeCompare(y.id)));
+      const canonical = (v:any):any => Array.isArray(v) ? v.map(canonical) : v && typeof v === 'object' ? Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])])) : v;
+      const same = (a: any[], b: any[]) => JSON.stringify(canonical([...a].sort((x,y) => x.id.localeCompare(y.id)))) === JSON.stringify(canonical([...b].sort((x,y) => x.id.localeCompare(y.id))));
       const conflict = (localHip !== null && !same(localHip, hipData)) || (localCl !== null && !same(localCl, clData));
       setLegacyRemote({ hipotesis: hipData, clientes: clData });
       setLegacyConflict(conflict);
@@ -407,8 +409,9 @@ export default function SubtekDashboard() {
           {config.uid && <button onClick={async () => { config.exportBackup(); const { error } = await supabase.auth.signOut(); if (error) alert(error.message); }} className="text-xs text-slate-400">Exportar respaldo y cerrar sesión</button>}
           {!config.uid && <div className="flex gap-2">
             <input aria-label="Correo para iniciar sesión" type="email" value={email} onChange={e => setEmail(e.target.value)} className="bg-slate-800 p-2" />
-            <button onClick={async () => { const { error } = await supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false, emailRedirectTo: window.location.origin } }); alert(error ? error.message : 'Revisa tu correo para iniciar sesión.'); }}>Enviar enlace de acceso</button>
+            <button onClick={async () => { if (email.trim().toLowerCase() !== 'nixoncastiblancotriana@gmail.com') { alert('Esta cuenta no está autorizada. Solicita acceso al administrador.'); return; } const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: true, emailRedirectTo: window.location.origin } }); alert(error ? error.message : 'Revisa tu correo para iniciar sesión. Si el enlace no regresa a esta app, copia el enlace del correo en el campo inferior.'); }}>Enviar enlace de acceso</button>
           </div>}
+          {!config.uid && <details className="text-sm text-slate-400"><summary>Usar el enlace del correo si no regresa a esta aplicación</summary><p className="mt-2">Copia el enlace de inicio de sesión del correo y pégalo aquí. El enlace se valida directamente con Supabase.</p><input type="password" aria-label="Enlace de acceso del correo" className="bg-slate-800 p-2 w-full mt-2" value={loginLink} onChange={e=>setLoginLink(e.target.value)} autoComplete="off"/><button onClick={async ()=>{ try { const url=new URL(loginLink); if (url.hostname !== 'fzjovmnudqbwukyzsznc.supabase.co' || url.pathname !== '/auth/v1/verify') throw new Error('El enlace debe ser de Supabase y corresponder al inicio de sesión.'); const token=url.searchParams.get('token'); const type=url.searchParams.get('type'); if(!token || !['magiclink','signup','email'].includes(type ?? '')) throw new Error('Enlace de acceso inválido.'); const {error}=await supabase.auth.verifyOtp({token_hash:token,type:type as any}); if(error) throw error; setLoginLink(''); } catch(e:any){alert(e.message);} }} className="text-subtek-cyan mt-2">Validar enlace e ingresar</button></details>}
           <div className="flex flex-wrap gap-4">
             <button onClick={config.exportBackup}>Exportar respaldo</button>
             <button onClick={config.load} disabled={config.working || !config.uid}>Comprobar configuración en nube</button>

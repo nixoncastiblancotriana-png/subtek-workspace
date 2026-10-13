@@ -40,7 +40,7 @@ create policy weekly_history_member_read on public.subtek_weekly_history for sel
 create policy archives_member_read on public.subtek_legacy_archives for select to authenticated
   using (exists (select 1 from public.subtek_config_members where user_id = (select auth.uid())));
 
-create function public.subtek_save_weekly_note(p_id uuid, p_expected_revision integer,
+create function subtek_private.subtek_save_weekly_note(p_id uuid, p_expected_revision integer,
   p_week_start date, p_task text, p_responsible text, p_due_date date,
   p_status text, p_notes text, p_archived boolean)
 returns public.subtek_weekly_notes language plpgsql security definer set search_path = '' as $$
@@ -66,7 +66,7 @@ begin
   return result;
 end;
 $$;
-create function public.subtek_archive_legacy(p_collection text,p_record_id text)
+create function subtek_private.subtek_archive_legacy(p_collection text,p_record_id text)
 returns void language plpgsql security definer set search_path = '' as $$
 begin
   if auth.uid() is null or not exists (select 1 from public.subtek_config_members where user_id = auth.uid()) then
@@ -77,8 +77,16 @@ begin
     values(p_collection,p_record_id,auth.uid()) on conflict (collection,record_id) do update set active=true, archived_at=now(), archived_by=auth.uid();
 end;
 $$;
+revoke all on function subtek_private.subtek_save_weekly_note(uuid,integer,date,text,text,date,text,text,boolean) from public,anon,authenticated;
+revoke all on function subtek_private.subtek_archive_legacy(text,text) from public,anon,authenticated;
+grant execute on function subtek_private.subtek_save_weekly_note(uuid,integer,date,text,text,date,text,text,boolean) to authenticated;
+grant execute on function subtek_private.subtek_archive_legacy(text,text) to authenticated;
+create function public.subtek_save_weekly_note(p_id uuid,p_expected_revision integer,p_week_start date,p_task text,p_responsible text,p_due_date date,p_status text,p_notes text,p_archived boolean) returns public.subtek_weekly_notes
+language sql security invoker set search_path = '' as $$ select subtek_private.subtek_save_weekly_note(p_id,p_expected_revision,p_week_start,p_task,p_responsible,p_due_date,p_status,p_notes,p_archived); $$;
 revoke all on function public.subtek_save_weekly_note(uuid,integer,date,text,text,date,text,text,boolean) from public,anon,authenticated;
-revoke all on function public.subtek_archive_legacy(text,text) from public,anon,authenticated;
 grant execute on function public.subtek_save_weekly_note(uuid,integer,date,text,text,date,text,text,boolean) to authenticated;
+create function public.subtek_archive_legacy(p_collection text,p_record_id text) returns void
+language sql security invoker set search_path = '' as $$ select subtek_private.subtek_archive_legacy(p_collection,p_record_id); $$;
+revoke all on function public.subtek_archive_legacy(text,text) from public,anon,authenticated;
 grant execute on function public.subtek_archive_legacy(text,text) to authenticated;
 commit;

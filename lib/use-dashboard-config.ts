@@ -39,10 +39,12 @@ export function useDashboardConfig(supabase: SupabaseClient) {
     busy.current = true; setWorking(true);
     try {
       let local = current.current;
+      let canUseLegacyTotal = false;
       if (restore) {
         const raw = snapshotLegacy(localStorage);
         local = { ...initial, draft: legacyConfig(raw) };
         const cached = localStorage.getItem(key(id));
+        canUseLegacyTotal = !cached && raw['subtek-ppto-v6'] === null;
         if (cached) {
           const c = JSON.parse(cached) as State;
           local = { ...local, draft: validateConfig(c.draft), base: c.base ? decodeCloud(c.base) : null,
@@ -76,7 +78,12 @@ export function useDashboardConfig(supabase: SupabaseClient) {
       const old = await supabase.from('presupuesto_global').select('total').eq('id', 1).maybeSingle();
       if (ticket !== generation.current) return;
       if (old.error) setMessage(m => m + ' No se pudo verificar el presupuesto anterior: ' + old.error!.message);
-      else setLegacyTotal(old.data ? Number(old.data.total) : null);
+      else {
+        setLegacyTotal(old.data ? Number(old.data.total) : null);
+        if (canUseLegacyTotal && !remote && old.data && Number.isFinite(Number(old.data.total)) && Number(old.data.total) >= 0) {
+          update({ ...current.current, draft: { ...current.current.draft, total: Number(old.data.total) } });
+        }
+      }
     } catch (e: any) {
       if (ticket !== generation.current) return;
       current.current = { ...current.current, ready: false }; setState(current.current);
